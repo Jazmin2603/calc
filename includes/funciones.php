@@ -163,16 +163,22 @@ function obtenerDistribucionEstados($conn) {
 function obtenerEstadisticasGenerales($conn) {
     $stmt = $conn->prepare("
         SELECT 
-            (SELECT COUNT(*) FROM usuarios) as total_usuarios,
-            (SELECT COUNT(*) FROM proyecto) as total_proyectos,
-            (SELECT COALESCE(SUM(total_hoy), 0) FROM items) as monto_total,
-            (SELECT COUNT(*) FROM proyecto p 
-             INNER JOIN estados e ON p.estado_id = e.id 
-             WHERE e.estado = 'Ganado') as proyectos_ganados,
-            (SELECT COUNT(*) FROM proyecto p 
-             INNER JOIN estados e ON p.estado_id = e.id 
-             WHERE e.estado = 'Abierto') as proyectos_abiertos,
-            (SELECT COUNT(*) FROM sucursales) as total_sucursales
+            (SELECT COUNT(*) FROM usuarios) AS total_usuarios,
+            (SELECT COUNT(*) FROM proyecto) AS total_proyectos,
+            (SELECT COALESCE(SUM(i.total_hoy), 0)
+             FROM items i
+             JOIN proyecto p ON i.id_proyecto = p.id_proyecto
+             JOIN estados e ON e.id = p.estado_id
+             WHERE e.estado = 'Ganado') AS monto_total,
+            (SELECT COUNT(*) 
+             FROM proyecto p
+             INNER JOIN estados e ON p.estado_id = e.id
+             WHERE e.estado = 'Ganado') AS proyectos_ganados,
+            (SELECT COUNT(*) 
+             FROM proyecto p
+             INNER JOIN estados e ON p.estado_id = e.id
+             WHERE e.estado = 'Abierto') AS proyectos_abiertos,
+            (SELECT COUNT(*) FROM sucursales) AS total_sucursales
     ");
     $stmt->execute();
     return $stmt->fetch(PDO::FETCH_ASSOC);

@@ -7,7 +7,6 @@ if (!isset($_SESSION['usuario'])) {
     exit();
 }
 
-// Obtener el ID del proyecto financiero desde la URL
 $id_proyecto_financiero = isset($_GET['id']) ? intval($_GET['id']) : 0;
 
 // Obtener datos del proyecto financiero
@@ -260,6 +259,59 @@ $utilidad_porcentaje = $precio_venta > 0 ? ($utilidad / $precio_venta) * 100 : 0
     const idProyectoFinanciero = <?= $id_proyecto_financiero ?>;
     const usuarios = <?= json_encode($usuarios) ?>;
 
+    // Tabla de Gastos Locales
+    const tableLocales = new Tabulator("#gastos-locales-grid", {
+        height: "auto",
+        layout: "fitColumns",
+        addRowPos: "top",
+        history: true,
+        columns: [
+            {title: "Fecha", field: "fecha", editor: "input", width: 120, validator: "required"},
+            {title: "Tipo de Gasto", field: "tipo_gasto", editor: "input", validator: "required"},
+            {title: "Descripción", field: "descripcion", editor: "input", width: 200},
+            {title: "Total Bs", field: "total_bs", editor: "number",
+             formatter: "money", formatterParams: {symbol: "Bs", symbolAfter: false, precision: 2},
+             bottomCalc: "sum", bottomCalcFormatter: "money", width: 120},
+            {title: "Facturado", field: "facturado", editor: "select", 
+             editorParams: {values: {"si": "Sí", "no": "No"}}, width: 100},
+            {title: "Crédito Fiscal", field: "credito_fiscal", editor: "number", width: 120},
+            {title: "Neto", field: "neto", editor: "number", width: 120},
+            {title: "Anexos", field: "anexo", editor: "input", width: 150},
+            {title: "Usuario", field: "usuario", editor: "select", editorParams: {
+                values: usuarios.reduce((acc, user) => {
+                    acc[user.id] = user.nombre;
+                    return acc;
+                }, {})
+            }, width: 150},
+            {title: "Fecha Pago", field: "fecha_pago", editor: "input", width: 120},
+            {title: "Acciones", formatter: "buttonCross", width: 80, hozAlign: "center",
+             cellClick: function(e, cell) {
+                const row = cell.getRow();
+                const data = row.getData();
+                
+                if (confirm("¿Estás seguro de eliminar este gasto?")) {
+                    if (data.id) {
+                        fetch('eliminar_gasto_local.php', {
+                            method: 'POST',
+                            headers: {'Content-Type': 'application/json'},
+                            body: JSON.stringify({ id: data.id })
+                        }).then(response => response.json())
+                        .then(res => {
+                            if (res.success) {
+                                row.delete();
+                            } else {
+                                alert("Error al eliminar: " + res.message);
+                            }
+                        });
+                    } else {
+                        row.delete();
+                    }
+                }
+            }}
+        ],
+        data: <?= json_encode($gastos_locales) ?>
+    });
+
     // Tabla de Gastos en el Exterior
     const tableExterior = new Tabulator("#gastos-exterior-grid", {
         height: "auto",
@@ -314,58 +366,6 @@ $utilidad_porcentaje = $precio_venta > 0 ? ($utilidad / $precio_venta) * 100 : 0
         data: <?= json_encode($gastos_exterior) ?>
     });
 
-    // Tabla de Gastos Locales
-    const tableLocales = new Tabulator("#gastos-locales-grid", {
-        height: "auto",
-        layout: "fitColumns",
-        addRowPos: "top",
-        history: true,
-        columns: [
-            {title: "Fecha", field: "fecha", editor: "input", width: 120, validator: "required"},
-            {title: "Tipo de Gasto", field: "tipo_gasto", editor: "input", validator: "required"},
-            {title: "Descripción", field: "descripcion", editor: "input", width: 200},
-            {title: "Total Bs", field: "total_bs", editor: "number",
-             formatter: "money", formatterParams: {symbol: "Bs", symbolAfter: false, precision: 2},
-             bottomCalc: "sum", bottomCalcFormatter: "money", width: 120},
-            {title: "Facturado", field: "facturado", editor: "select", 
-             editorParams: {values: {"si": "Sí", "no": "No"}}, width: 100},
-            {title: "Crédito Fiscal", field: "credito_fiscal", editor: "number", width: 120},
-            {title: "Neto", field: "neto", editor: "number", width: 120},
-            {title: "Anexos", field: "anexo", editor: "input", width: 150},
-            {title: "Usuario", field: "usuario", editor: "select", editorParams: {
-                values: usuarios.reduce((acc, user) => {
-                    acc[user.id] = user.nombre;
-                    return acc;
-                }, {})
-            }, width: 150},
-            {title: "Fecha Pago", field: "fecha_pago", editor: "input", width: 120},
-            {title: "Acciones", formatter: "buttonCross", width: 80, hozAlign: "center",
-             cellClick: function(e, cell) {
-                const row = cell.getRow();
-                const data = row.getData();
-                
-                if (confirm("¿Estás seguro de eliminar este gasto?")) {
-                    if (data.id) {
-                        fetch('eliminar_gasto_local.php', {
-                            method: 'POST',
-                            headers: {'Content-Type': 'application/json'},
-                            body: JSON.stringify({ id: data.id })
-                        }).then(response => response.json())
-                        .then(res => {
-                            if (res.success) {
-                                row.delete();
-                            } else {
-                                alert("Error al eliminar: " + res.message);
-                            }
-                        });
-                    } else {
-                        row.delete();
-                    }
-                }
-            }}
-        ],
-        data: <?= json_encode($gastos_locales) ?>
-    });
 
     // Event Listeners
     document.getElementById("add-gasto-exterior").addEventListener("click", function() {

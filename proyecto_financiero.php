@@ -10,8 +10,12 @@ if (!isset($_SESSION['usuario'])) {
 $id_proyecto_financiero = isset($_GET['id']) ? intval($_GET['id']) : 0;
 
 // Obtener datos del proyecto financiero
-$stmt = $conn->prepare("SELECT pf.*, p.titulo, p.cliente, p.numero_proyecto, 
-                        u.nombre as nombre_usuario, s.nombre as sucursal_nombre,
+$stmt = $conn->prepare("SELECT pf.*, 
+                        COALESCE(pf.titulo, p.titulo) as titulo_mostrar,
+                        COALESCE(pf.cliente, p.cliente) as cliente_mostrar,
+                        p.numero_proyecto, 
+                        u.nombre as nombre_usuario, 
+                        s.nombre as sucursal_nombre,
                         ef.estado as estado_financiero
                         FROM proyecto_financiero pf
                         LEFT JOIN proyecto p ON pf.presupuesto_id = p.id_proyecto
@@ -34,11 +38,13 @@ $datos_cabecera = $stmt->fetch(PDO::FETCH_ASSOC);
 
 // Si no existe, crear registro vacío
 if (!$datos_cabecera) {
-    $stmt = $conn->prepare("INSERT INTO datos_cabecera (id_proyecto) VALUES (?)");
+    $stmt = $conn->prepare("INSERT INTO datos_cabecera (id_proyecto, precio_final_venta, venta_productos, venta_servicios, presupuesto_gasto_usd, presupuesto_gasto_bs, credito_fiscal_favor) 
+                           VALUES (?, 0, 0, 0, 0, 0, 0)");
     $stmt->execute([$id_proyecto_financiero]);
     $datos_cabecera = [
         'precio_final_venta' => 0,
         'venta_productos' => 0,
+        'venta_servicios' => 0,
         'presupuesto_gasto_usd' => 0,
         'presupuesto_gasto_bs' => 0,
         'credito_fiscal_favor' => 0
@@ -48,7 +54,7 @@ if (!$datos_cabecera) {
 // Obtener gastos en el exterior
 $stmt = $conn->prepare("SELECT ge.*, u.nombre as nombre_usuario 
                        FROM gastos_exterior ge 
-                       JOIN usuarios u ON ge.usuario = u.id 
+                       LEFT JOIN usuarios u ON ge.usuario = u.id 
                        WHERE ge.id_proyecto = ? 
                        ORDER BY ge.fecha DESC");
 $stmt->execute([$id_proyecto_financiero]);
@@ -57,23 +63,55 @@ $gastos_exterior = $stmt->fetchAll(PDO::FETCH_ASSOC);
 // Obtener gastos locales
 $stmt = $conn->prepare("SELECT gl.*, u.nombre as nombre_usuario 
                        FROM gastos_locales gl 
-                       JOIN usuarios u ON gl.usuario = u.id 
+                       LEFT JOIN usuarios u ON gl.usuario = u.id 
                        WHERE gl.id_proyecto = ? 
                        ORDER BY gl.fecha DESC");
 $stmt->execute([$id_proyecto_financiero]);
 $gastos_locales = $stmt->fetchAll(PDO::FETCH_ASSOC);
 
 // Obtener lista de usuarios para los select
-$stmt = $conn->query("SELECT id, nombre FROM usuarios");
+$stmt = $conn->query("SELECT id, nombre FROM usuarios ORDER BY nombre");
 $usuarios = $stmt->fetchAll(PDO::FETCH_ASSOC);
 
+// Categorías de gastos e ingresos (según el PDF)
+$categorias_gastos = [
+    'Productos',
+    'Flete Internacional',
+    'Seguros',
+    'Despachante Aduanero',
+    'Otros',
+    'Transporte Local',
+    'Almacenaje',
+    'Aranceles de importacion',
+    'Multas',
+    'Gastos Administrativos',
+    'Gastos Legales',
+    'Comision Giros'
+];
+
+$categorias_ingresos = [
+    'Factura de Venta'
+];
+
 // Calcular totales
-$total_gastos_exterior = array_sum(array_column($gastos_exterior, 'total_bs'));
-$total_gastos_locales = array_sum(array_column($gastos_locales, 'total_bs'));
-$total_gastos = $total_gastos_exterior + $total_gastos_locales;
-$precio_venta = $datos_cabecera['precio_final_venta'];
-$utilidad = $precio_venta - $total_gastos;
-$utilidad_porcentaje = $precio_venta > 0 ? ($utilidad / $precio_venta) * 100 : 0;
+$total_gastos_exterior_usd = array_sum(array_column($gastos_exterior, 'total_usd'));
+$total_gastos_exterior_bs = array_sum(array_column($gastos_exterior, 'total_bs'));
+$total_gastos_locales_bs = array_sum(array_column($gastos_locales, 'total_bs'));
+$total_credito_fiscal = array_sum(array_column($gastos_locales, 'credito_fiscal'));
+$total_neto_locales = array_sum(array_column($gastos_locales, 'neto'));
+
+// Cálculos del resumen financiero
+$precio_venta = floatval($datos_cabecera['precio_final_venta']);
+$venta_productos = floatval($datos_cabecera['venta_productos']);
+$venta_servicios = floatval($datos_cabecera['venta_servicios']);
+
+$total_producto = $total_gastos_exterior_bs; // Gastos de productos importados
+$costos_importacion = $total_gastos_exterior_bs; // Total gastado en exterior
+$gastos_locales_total = $total_neto_locales; // Neto de gastos locales
+$total_costo = $total_producto + $gastos_locales_total;
+$total_ingreso = $precio_venta;
+$utilidad_neta = $total_ingreso - $total_costo;
+$utilidad_porcentaje = $total_ingreso > 0 ? ($utilidad_neta / $total_ingreso) * 100 : 0;
 
 ?>
 
@@ -81,7 +119,7 @@ $utilidad_porcentaje = $precio_venta > 0 ? ($utilidad / $precio_venta) * 100 : 0
 <html lang="es">
 <head>
     <meta charset="UTF-8">
-    <title>Proyecto Financiero: <?= htmlspecialchars($proyecto_financiero['titulo'] ?? 'Proyecto Independiente') ?></title>
+    <title>Proyecto Financiero: <?= htmlspecialchars($proyecto_financiero['titulo_mostrar'] ?? 'Sin título') ?></title>
     <link rel="icon" type="image/jpg" href="assets/icono.jpg">
     <link rel="stylesheet" href="https://unpkg.com/tabulator-tables@5.5.2/dist/css/tabulator.min.css">
     <style>
@@ -102,34 +140,44 @@ $utilidad_porcentaje = $precio_venta > 0 ? ($utilidad / $precio_venta) * 100 : 0
             padding: 20px;
             border-radius: 8px;
             margin: 20px 0;
-            border: 1px solid #dee2e6;
+            border: 2px solid #34a44c;
+        }
+
+        .resumen-financiero h2 {
+            color: #2c3e50;
+            margin-bottom: 20px;
+            border-bottom: 2px solid #34a44c;
+            padding-bottom: 10px;
         }
 
         .resumen-grid {
             display: grid;
-            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+            grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
             gap: 15px;
             margin-top: 15px;
         }
 
         .resumen-item {
             text-align: center;
-            padding: 10px;
+            padding: 15px;
             background: white;
             border-radius: 6px;
             border: 1px solid #dee2e6;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
         }
 
         .resumen-item h4 {
-            margin: 0 0 5px 0;
-            font-size: 14px;
+            margin: 0 0 8px 0;
+            font-size: 13px;
             color: #6c757d;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
         }
 
         .resumen-item .valor {
-            font-size: 18px;
+            font-size: 22px;
             font-weight: bold;
-            color: #000;
+            color: #2c3e50;
         }
 
         .utilidad-positiva {
@@ -145,6 +193,34 @@ $utilidad_porcentaje = $precio_venta > 0 ? ($utilidad / $precio_venta) * 100 : 0
             padding: 20px;
             border: 1px solid #dee2e6;
             border-radius: 8px;
+            background: white;
+        }
+
+        .seccion-gastos h2 {
+            color: #2c3e50;
+            margin-bottom: 15px;
+            padding-bottom: 10px;
+            border-bottom: 2px solid #34a44c;
+        }
+
+        .btn-success {
+            background-color: #28a745;
+        }
+
+        .btn-success:hover {
+            background-color: #218838;
+        }
+
+        .totales-footer {
+            background-color: #f8f9fa;
+            padding: 10px;
+            margin-top: 10px;
+            border-radius: 4px;
+            border: 1px solid #dee2e6;
+        }
+
+        .totales-footer strong {
+            color: #2c3e50;
         }
     </style>
     <link rel="stylesheet" href="styles.css">
@@ -154,12 +230,9 @@ $utilidad_porcentaje = $precio_venta > 0 ? ($utilidad / $precio_venta) * 100 : 0
         <header class="proyecto-header">
             <div class="header-left">
                 <img src="assets/logo.png" class="logo">
-                <h1><?= htmlspecialchars($proyecto_financiero['titulo'] ?? 'Proyecto Independiente') ?></h1>
-                <p><strong>Proyecto Financiero:</strong> PF-<?= $proyecto_financiero['numero_proyectoF'] ?></p>
-                <?php if ($proyecto_financiero['numero_proyecto']): ?>
-                    <p><strong>Proyecto Original:</strong> #<?= $proyecto_financiero['numero_proyecto'] ?></p>
-                <?php endif; ?>
-                <p><strong>Estado:</strong> <?= $proyecto_financiero['estado_financiero'] ?></p>
+                <div>
+                    <h1><?= htmlspecialchars($proyecto_financiero['titulo_mostrar'] ?? 'Sin título') ?></h1>
+                </div>
             </div>
             <a href="finanzas.php" class="btn-back">Volver a Proyectos Financieros</a>
         </header>
@@ -167,24 +240,36 @@ $utilidad_porcentaje = $precio_venta > 0 ? ($utilidad / $precio_venta) * 100 : 0
     
     <!-- Resumen Financiero -->
     <div class="resumen-financiero">
-        <h2>Resumen Financiero</h2>
+        <h2>RESUMEN FINANCIERO</h2>
         <div class="resumen-grid">
             <div class="resumen-item">
-                <h4>Precio Final de Venta</h4>
-                <div class="valor"><?= number_format($precio_venta, 2) ?> Bs</div>
+                <h4>Total Producto</h4>
+                <div class="valor"><?= number_format($total_producto, 2) ?> Bs</div>
             </div>
             <div class="resumen-item">
-                <h4>Total Gastos</h4>
-                <div class="valor"><?= number_format($total_gastos, 2) ?> Bs</div>
+                <h4>Costos de Importación</h4>
+                <div class="valor"><?= number_format($costos_importacion, 2) ?> Bs</div>
             </div>
             <div class="resumen-item">
-                <h4>Utilidad Neta</h4>
-                <div class="valor <?= $utilidad >= 0 ? 'utilidad-positiva' : 'utilidad-negativa' ?>">
-                    <?= number_format($utilidad, 2) ?> Bs
+                <h4>Gastos Locales</h4>
+                <div class="valor"><?= number_format($gastos_locales_total, 2) ?> Bs</div>
+            </div>
+            <div class="resumen-item">
+                <h4>Total Costo</h4>
+                <div class="valor"><?= number_format($total_costo, 2) ?> Bs</div>
+            </div>
+            <div class="resumen-item">
+                <h4>Total Ingreso</h4>
+                <div class="valor" style="color: #007bff;"><?= number_format($total_ingreso, 2) ?> Bs</div>
+            </div>
+            <div class="resumen-item">
+                <h4>Utilidad NETA</h4>
+                <div class="valor <?= $utilidad_neta >= 0 ? 'utilidad-positiva' : 'utilidad-negativa' ?>">
+                    <?= number_format($utilidad_neta, 2) ?> Bs
                 </div>
             </div>
             <div class="resumen-item">
-                <h4>Margen de Utilidad</h4>
+                <h4>Utilidad (%)</h4>
                 <div class="valor <?= $utilidad_porcentaje >= 0 ? 'utilidad-positiva' : 'utilidad-negativa' ?>">
                     <?= number_format($utilidad_porcentaje, 1) ?>%
                 </div>
@@ -198,7 +283,7 @@ $utilidad_porcentaje = $precio_venta > 0 ? ($utilidad / $precio_venta) * 100 : 0
             <input type="hidden" name="id_proyecto_financiero" value="<?= $id_proyecto_financiero ?>">
 
             <div class="maestro-header">
-                <h2>Datos Principales</h2>
+                <h2>Datos de Cabecera del Proyecto</h2>
                 <button type="submit" class="btn-back">Guardar Cambios</button>                      
             </div>
 
@@ -206,21 +291,30 @@ $utilidad_porcentaje = $precio_venta > 0 ? ($utilidad / $precio_venta) * 100 : 0
                 <div class="maestro-row">
                     <div class="maestro-col">
                         <label>Precio Final de Venta (Bs):</label>
-                        <input type="number" step="0.01" name="precio_final_venta" value="<?= $datos_cabecera['precio_final_venta'] ?>">
+                        <input type="number" step="0.01" name="precio_final_venta" 
+                               value="<?= $datos_cabecera['precio_final_venta'] ?>" required>
 
                         <label>Venta de Productos (Bs):</label>
-                        <input type="number" step="0.01" name="venta_productos" value="<?= $datos_cabecera['venta_productos'] ?>">
+                        <input type="number" step="0.01" name="venta_productos" 
+                               value="<?= $datos_cabecera['venta_productos'] ?>" required>
+
+                        <label>Venta de Servicios (Bs):</label>
+                        <input type="number" step="0.01" name="venta_servicios" 
+                               value="<?= $datos_cabecera['venta_servicios'] ?? 0 ?>" required>
                     </div>
 
                     <div class="maestro-col">
                         <label>Presupuesto Gasto en USD:</label>
-                        <input type="number" step="0.01" name="presupuesto_gasto_usd" value="<?= $datos_cabecera['presupuesto_gasto_usd'] ?>">
+                        <input type="number" step="0.01" name="presupuesto_gasto_usd" 
+                               value="<?= $datos_cabecera['presupuesto_gasto_usd'] ?>" required>
 
                         <label>Presupuesto Gasto en Bs:</label>
-                        <input type="number" step="0.01" name="presupuesto_gasto_bs" value="<?= $datos_cabecera['presupuesto_gasto_bs'] ?>">
+                        <input type="number" step="0.01" name="presupuesto_gasto_bs" 
+                               value="<?= $datos_cabecera['presupuesto_gasto_bs'] ?>" required>
 
                         <label>Crédito Fiscal a Favor (Bs):</label>
-                        <input type="number" step="0.01" name="credito_fiscal_favor" value="<?= $datos_cabecera['credito_fiscal_favor'] ?>">
+                        <input type="number" step="0.01" name="credito_fiscal_favor" 
+                               value="<?= $datos_cabecera['credito_fiscal_favor'] ?>" required>
                     </div>
                 </div>
             </div>
@@ -229,7 +323,7 @@ $utilidad_porcentaje = $precio_venta > 0 ? ($utilidad / $precio_venta) * 100 : 0
 
     <!-- Gastos en el Exterior -->
     <div class="seccion-gastos">
-        <h2>Gastos en el Exterior</h2>
+        <h2>Gastos en el Exterior (USD)</h2>
         <div class="form-rowi">
             <div>
                 <button id="add-gasto-exterior" class="btn">Agregar Gasto</button>
@@ -238,11 +332,12 @@ $utilidad_porcentaje = $precio_venta > 0 ? ($utilidad / $precio_venta) * 100 : 0
         </div>
 
         <div id="gastos-exterior-grid"></div>
+        
     </div>
 
     <!-- Gastos Locales -->
     <div class="seccion-gastos">
-        <h2>Gastos Locales</h2>
+        <h2>Gastos Locales (Bs)</h2>
         <div class="form-rowi">
             <div>
                 <button id="add-gasto-local" class="btn">Agregar Gasto</button>
@@ -251,6 +346,7 @@ $utilidad_porcentaje = $precio_venta > 0 ? ($utilidad / $precio_venta) * 100 : 0
         </div>
 
         <div id="gastos-locales-grid"></div>
+        
     </div>
 
     <script src="https://unpkg.com/tabulator-tables@5.5.2/dist/js/tabulator.min.js"></script>
@@ -258,120 +354,142 @@ $utilidad_porcentaje = $precio_venta > 0 ? ($utilidad / $precio_venta) * 100 : 0
     <script>
     const idProyectoFinanciero = <?= $id_proyecto_financiero ?>;
     const usuarios = <?= json_encode($usuarios) ?>;
+    const categoriasGastos = <?= json_encode($categorias_gastos) ?>;
+    const categoriasIngresos = <?= json_encode($categorias_ingresos) ?>;
 
-    // Tabla de Gastos Locales
-    const tableLocales = new Tabulator("#gastos-locales-grid", {
-        height: "auto",
-        layout: "fitColumns",
-        addRowPos: "top",
-        history: true,
-        columns: [
-            {title: "Fecha", field: "fecha", editor: "input", width: 120, validator: "required"},
-            {title: "Tipo de Gasto", field: "tipo_gasto", editor: "input", validator: "required"},
-            {title: "Descripción", field: "descripcion", editor: "input", width: 200},
-            {title: "Total Bs", field: "total_bs", editor: "number",
-             formatter: "money", formatterParams: {symbol: "Bs", symbolAfter: false, precision: 2},
-             bottomCalc: "sum", bottomCalcFormatter: "money", width: 120},
-            {title: "Facturado", field: "facturado", editor: "select", 
-             editorParams: {values: {"si": "Sí", "no": "No"}}, width: 100},
-            {title: "Crédito Fiscal", field: "credito_fiscal", editor: "number", width: 120},
-            {title: "Neto", field: "neto", editor: "number", width: 120},
-            {title: "Anexos", field: "anexo", editor: "input", width: 150},
-            {title: "Usuario", field: "usuario", editor: "select", editorParams: {
-                values: usuarios.reduce((acc, user) => {
-                    acc[user.id] = user.nombre;
-                    return acc;
-                }, {})
-            }, width: 150},
-            {title: "Fecha Pago", field: "fecha_pago", editor: "input", width: 120},
-            {title: "Acciones", formatter: "buttonCross", width: 80, hozAlign: "center",
-             cellClick: function(e, cell) {
-                const row = cell.getRow();
-                const data = row.getData();
-                
-                if (confirm("¿Estás seguro de eliminar este gasto?")) {
-                    if (data.id) {
-                        fetch('eliminar_gasto_local.php', {
-                            method: 'POST',
-                            headers: {'Content-Type': 'application/json'},
-                            body: JSON.stringify({ id: data.id })
-                        }).then(response => response.json())
-                        .then(res => {
-                            if (res.success) {
-                                row.delete();
-                            } else {
-                                alert("Error al eliminar: " + res.message);
-                            }
-                        });
-                    } else {
-                        row.delete();
-                    }
-                }
-            }}
-        ],
-        data: <?= json_encode($gastos_locales) ?>
+    // Configurar valores para select de usuarios
+    const usuariosSelect = usuarios.reduce((acc, user) => {
+        acc[user.id] = user.nombre;
+        return acc;
+    }, {});
+
+    // Configurar valores para select de categorías
+    const categoriasSelect = {};
+    categoriasGastos.forEach(cat => {
+        categoriasSelect[cat] = cat;
     });
 
     // Tabla de Gastos en el Exterior
     const tableExterior = new Tabulator("#gastos-exterior-grid", {
         height: "auto",
-        layout: "fitColumns",
+        layout: "fitDataStretch",
         addRowPos: "top",
         history: true,
         columns: [
-            {title: "Fecha", field: "fecha", editor: "input", width: 120, validator: "required"},
-            {title: "Tipo de Gasto", field: "tipo_gasto", editor: "input", validator: "required"},
-            {title: "Descripción", field: "descripcion", editor: "input", width: 200},
-            {title: "Total USD", field: "total_usd", editor: "number", 
-             formatter: "money", formatterParams: {symbol: "$", symbolAfter: false, precision: 2},
-             bottomCalc: "sum", bottomCalcFormatter: "money", width: 120},
-            {title: "Tipo de Cambio", field: "tipo_cambio", editor: "number", width: 120},
-            {title: "Total Bs", field: "total_bs", editor: "number",
-             formatter: "money", formatterParams: {symbol: "Bs", symbolAfter: false, precision: 2},
-             bottomCalc: "sum", bottomCalcFormatter: "money", width: 120},
-            {title: "Anexos", field: "anexo", editor: "input", width: 150},
-            {title: "Usuario", field: "usuario", editor: "select", editorParams: {
-                values: usuarios.reduce((acc, user) => {
-                    acc[user.id] = user.nombre;
-                    return acc;
-                }, {})
-            }, width: 150},
-            {title: "Fecha Pago", field: "fecha_pago", editor: "input", width: 120},
-            {title: "Acciones", formatter: "buttonCross", width: 80, hozAlign: "center",
+            {title: "Fecha", field: "fecha", editor: "date", width: 120, validator: "required"},
+            {title: "Tipo Gasto", field: "tipo_gasto", editor: "select", 
+             editorParams: {values: {Producto: "Producto", Servicio: "Servicio"}}, 
+             width: 120, validator: "required"},
+            {title: "Categoría", field: "categoria", editor: "select", 
+             editorParams: {values: categoriasSelect}, width: 180, validator: "required"},
+            {title: "Descripción", field: "descripcion", editor: "input", width: 250},
+            {title: "Total USD", field: "total_usd", editor: "number", align:"right",
+             formatter: "money", formatterParams: {symbol: " $", symbolAfter:true, thousand: ".", decimal:",", precision: 2}, hozAlign: "right",
+             bottomCalc: "sum", bottomCalcFormatter: "money", 
+             bottomCalcFormatterParams: {symbol: " $", symbolAfter: true, thousand: ".", decimal:",", precision: 2},
+             width: 130, validator: "required"},
+            {title: "TC", field: "tipo_cambio", editor: "number", 
+             formatter: "money", formatterParams: {precision: 2}, width: 100},
+            {title: "Total Bs", field: "total_bs", editor: "number", align: "right", formatter: "money", formatterParams: {symbol: " Bs", symbolAfter: true, thousand: ".", decimal:",", precision: 2}, hozAlign: "right",
+             bottomCalc: "sum", bottomCalcFormatter: "money",
+             bottomCalcFormatterParams: {symbol: " Bs", symbolAfter: true, thousand: ".", decimal:",", precision: 2},
+             width: 130},
+            {title: "Anexos", field: "anexos", editor: "input", width: 150},
+            {title: "Usuario", field: "usuario", editor: "select", 
+             editorParams: {values: usuariosSelect}, 
+             formatter: function(cell) {
+                 const val = cell.getValue();
+                 return usuariosSelect[val] || val;
+             },
+             width: 150},
+            {title: "Fecha Pago", field: "fecha_pago", editor: "date", width: 120},
+            {title: "Acciones", formatter: "buttonCross", width: 60, hozAlign: "center",
              cellClick: function(e, cell) {
-                const row = cell.getRow();
-                const data = row.getData();
-                
-                if (confirm("¿Estás seguro de eliminar este gasto?")) {
-                    if (data.id) {
-                        // Eliminar de la base de datos
-                        fetch('eliminar_gasto_exterior.php', {
-                            method: 'POST',
-                            headers: {'Content-Type': 'application/json'},
-                            body: JSON.stringify({ id: data.id })
-                        }).then(response => response.json())
-                        .then(res => {
-                            if (res.success) {
-                                row.delete();
-                            } else {
-                                alert("Error al eliminar: " + res.message);
-                            }
-                        });
-                    } else {
-                        row.delete();
-                    }
-                }
+                eliminarFila(cell, 'exterior');
             }}
         ],
-        data: <?= json_encode($gastos_exterior) ?>
+        data: <?= json_encode($gastos_exterior) ?>,
+        cellEdited: function(cell) {
+            // Auto-calcular Total Bs cuando cambia USD o TC
+            const field = cell.getField();
+            if (field === 'total_usd' || field === 'tipo_cambio') {
+                const row = cell.getRow();
+                const data = row.getData();
+                const totalUsd = parseFloat(data.total_usd) || 0;
+                const tc = parseFloat(data.tipo_cambio) || 0;
+                row.update({total_bs: totalUsd * tc});
+            }
+        }
     });
 
+    // Tabla de Gastos Locales
+    const tableLocales = new Tabulator("#gastos-locales-grid", {
+        height: "auto",
+        layout: "fitDataStretch",
+        addRowPos: "top",
+        history: true,
+        columns: [
+            {title: "Fecha", field: "fecha", editor: "date", width: 120, validator: "required"},
+            {title: "Tipo Gasto", field: "tipo_gasto", editor: "select",
+             editorParams: {values: {Producto: "Producto", Servicio: "Servicio"}},
+             width: 120, validator: "required"},
+            {title: "Categoría", field: "categoria", editor: "select",
+             editorParams: {values: categoriasSelect}, width: 180, validator: "required"},
+            {title: "Descripción", field: "descripcion", editor: "input", width: 250},
+            {title: "Total Bs", field: "total_bs", editor: "number",
+             formatter: "money", formatterParams: {symbol: " Bs", symbolAfter:true, thousand: ".", decimal: ",", precision: 2},
+             bottomCalc: "sum", bottomCalcFormatter: "money",
+             bottomCalcFormatterParams: {symbol: " Bs", symbolAfter:true, thousand: ".", decimal:",", precision: 2}, hozAlign:"right",
+             width: 130, validator: "required"},
+            {title: "Facturado", field: "facturado", editor: "select", 
+             editorParams: {values: {si: "SI", no: "NO"}}, width: 100},
+            {title: "CF", field: "credito_fiscal", editor: "number",
+             formatter: "money", formatterParams: {symbol: " Bs", symbolAfter:true, thousand: ".", decimal:",", precision: 2}, hozAlign:"right",
+             bottomCalc: "sum", bottomCalcFormatter: "money",
+             bottomCalcFormatterParams: {symbol: " Bs", symbolAfter:true, thousand: ".", decimal:",", precision: 2},
+             width: 120},
+            {title: "Neto", field: "neto", editor: "number",
+             formatter: "money", formatterParams: {symbol: " Bs", symbolAfter:true,thousand: ".", decimal:",", precision: 2}, hozAlign:"right",
+             bottomCalc: "sum", bottomCalcFormatter: "money",
+             bottomCalcFormatterParams: {symbol: " Bs", symbolAfter:true, thousand: ".", decimal:",", precision: 2},
+             width: 120},
+            {title: "Anexos", field: "anexos", editor: "input", width: 150},
+            {title: "Usuario", field: "usuario", editor: "select",
+             editorParams: {values: usuariosSelect},
+             formatter: function(cell) {
+                 const val = cell.getValue();
+                 return usuariosSelect[val] || val;
+             },
+             width: 150},
+            {title: "Fecha Pago", field: "fecha_pago", editor: "date", width: 120},
+            {title: "Acciones", formatter: "buttonCross", width: 60, hozAlign: "center",
+             cellClick: function(e, cell) {
+                eliminarFila(cell, 'local');
+            }}
+        ],
+        data: <?= json_encode($gastos_locales) ?>,
+        cellEdited: function(cell) {
+            // Auto-calcular Neto cuando cambia Total Bs o Crédito Fiscal
+            const field = cell.getField();
+            if (field === 'total_bs' || field === 'credito_fiscal') {
+                const row = cell.getRow();
+                const data = row.getData();
+                const totalBs = parseFloat(data.total_bs) || 0;
+                const creditoFiscal = parseFloat(data.credito_fiscal) || 0;
+                row.update({neto: totalBs - creditoFiscal});
+            }
+        }
+    });
 
     // Event Listeners
     document.getElementById("add-gasto-exterior").addEventListener("click", function() {
         tableExterior.addRow({
             fecha: new Date().toISOString().split('T')[0],
-            usuario: <?= $_SESSION['usuario']['id'] ?>
+            usuario: <?= $_SESSION['usuario']['id'] ?>,
+            tipo_gasto: 'Producto',
+            tipo_cambio: 7.0,
+            total_usd: 0,
+            total_bs: 0
         }, true);
     });
 
@@ -379,21 +497,65 @@ $utilidad_porcentaje = $precio_venta > 0 ? ($utilidad / $precio_venta) * 100 : 0
         tableLocales.addRow({
             fecha: new Date().toISOString().split('T')[0],
             usuario: <?= $_SESSION['usuario']['id'] ?>,
-            facturado: 'no'
+            tipo_gasto: 'Servicio',
+            facturado: 'no',
+            total_bs: 0,
+            credito_fiscal: 0,
+            neto: 0
         }, true);
     });
 
     document.getElementById("save-gastos-exterior").addEventListener("click", function() {
         const datos = tableExterior.getData();
-        guardarGastos('guardar_gastos_exterior.php', datos);
+        guardarGastos('guardar_gastos_exterior.php', datos, 'exterior');
     });
 
     document.getElementById("save-gastos-locales").addEventListener("click", function() {
         const datos = tableLocales.getData();
-        guardarGastos('guardar_gastos_locales.php', datos);
+        guardarGastos('guardar_gastos_locales.php', datos, 'locales');
     });
 
-    function guardarGastos(url, datos) {
+    function eliminarFila(cell, tipo) {
+        const row = cell.getRow();
+        const data = row.getData();
+        
+        if (!confirm("¿Estás seguro de eliminar este gasto?")) return;
+        
+        if (data.id) {
+            const url = tipo === 'exterior' ? 'eliminar_gasto_exterior.php' : 'eliminar_gasto_local.php';
+            fetch(url, {
+                method: 'POST',
+                headers: {'Content-Type': 'application/json'},
+                body: JSON.stringify({ id: data.id })
+            }).then(response => response.json())
+            .then(res => {
+                if (res.success) {
+                    row.delete();
+                    alert('Gasto eliminado correctamente');
+                    location.reload();
+                } else {
+                    alert("Error al eliminar: " + res.message);
+                }
+            });
+        } else {
+            row.delete();
+        }
+    }
+
+    function guardarGastos(url, datos, tipo) {
+        // Validar datos antes de enviar
+        let errores = [];
+        datos.forEach((gasto, index) => {
+            if (!gasto.fecha) errores.push(`Fila ${index + 1}: Falta fecha`);
+            if (!gasto.tipo_gasto) errores.push(`Fila ${index + 1}: Falta tipo de gasto`);
+            if (!gasto.categoria) errores.push(`Fila ${index + 1}: Falta categoría`);
+        });
+
+        if (errores.length > 0) {
+            alert('Errores de validación:\n' + errores.join('\n'));
+            return;
+        }
+
         fetch(url, {
             method: 'POST',
             headers: {'Content-Type': 'application/json'},
@@ -404,7 +566,7 @@ $utilidad_porcentaje = $precio_venta > 0 ? ($utilidad / $precio_venta) * 100 : 0
         }).then(response => response.json())
         .then(res => {
             if (res.success) {
-                alert('Gastos guardados correctamente');
+                //alert('Gastos guardados correctamente');
                 location.reload();
             } else {
                 alert('Error al guardar: ' + res.message);

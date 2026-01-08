@@ -1,10 +1,4 @@
-
 <?php
-/**
- * ARCHIVO: guardar_gastos_locales.php
- * Faltaba este archivo para manejar los gastos locales
- */
-
 include 'includes/config.php';
 include 'includes/auth.php';
 
@@ -27,40 +21,74 @@ try {
         $id = isset($gasto['id']) ? intval($gasto['id']) : null;
         $fecha = $gasto['fecha'] ?? null;
         $tipo_gasto = $gasto['tipo_gasto'] ?? '';
+        $categoria = $gasto['categoria'] ?? '';
         $descripcion = $gasto['descripcion'] ?? '';
         $total_bs = floatval($gasto['total_bs'] ?? 0);
         $facturado = $gasto['facturado'] ?? 'no';
         $credito_fiscal = floatval($gasto['credito_fiscal'] ?? 0);
-        $neto = floatval($gasto['neto'] ?? 0);
-        $anexo = $gasto['anexo'] ?? '';
-        $usuario = intval($gasto['usuario'] ?? 0);
+        $anexo = $gasto['anexos'] ?? '';
+        $usuario = intval($gasto['usuario'] ?? $_SESSION['usuario']['id']);
         $fecha_pago = $gasto['fecha_pago'] ?? null;
 
+        // Validaciones
+        if (empty($fecha) || empty($tipo_gasto) || empty($categoria)) {
+            throw new Exception("Faltan datos obligatorios en uno de los gastos");
+        }
+
+
         if ($id) {
-            // Actualizar
             $stmt = $conn->prepare("UPDATE gastos_locales SET 
-                fecha = ?, tipo_gasto = ?, descripcion = ?, total_bs = ?, 
-                facturado = ?, credito_fiscal = ?, neto = ?, anexo = ?, 
-                usuario = ?, fecha_pago = ?
+                fecha = ?, 
+                tipo_gasto = ?, 
+                categoria = ?,
+                descripcion = ?, 
+                total_bs = ?, 
+                facturado = ?, 
+                credito_fiscal = ?, 
+                anexos = ?, 
+                usuario = ?, 
+                fecha_pago = ?
                 WHERE id = ? AND id_proyecto = ?");
-            $stmt->execute([$fecha, $tipo_gasto, $descripcion, $total_bs, $facturado, 
-                          $credito_fiscal, $neto, $anexo, $usuario, $fecha_pago, $id, $id_proyecto]);
+            $stmt->execute([
+                $fecha, 
+                $tipo_gasto, 
+                $categoria,
+                $descripcion, 
+                $total_bs, 
+                $facturado, 
+                $credito_fiscal, 
+                $anexo, 
+                $usuario, 
+                $fecha_pago, 
+                $id, 
+                $id_proyecto
+            ]);
         } else {
-            // Insertar
             $stmt = $conn->prepare("INSERT INTO gastos_locales 
-                (id_proyecto, fecha, tipo_gasto, descripcion, total_bs, facturado, 
-                 credito_fiscal, neto, anexo, usuario, fecha_pago) 
+                (id_proyecto, fecha, tipo_gasto, categoria, descripcion, total_bs, 
+                 facturado, credito_fiscal, anexos, usuario, fecha_pago) 
                 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)");
-            $stmt->execute([$id_proyecto, $fecha, $tipo_gasto, $descripcion, $total_bs, 
-                          $facturado, $credito_fiscal, $neto, $anexo, $usuario, $fecha_pago]);
+            $stmt->execute([
+                $id_proyecto, 
+                $fecha, 
+                $tipo_gasto,
+                $categoria,
+                $descripcion, 
+                $total_bs, 
+                $facturado, 
+                $credito_fiscal, 
+                $anexo, 
+                $usuario, 
+                $fecha_pago
+            ]);
         }
     }
 
     $conn->commit();
-    echo json_encode(['success' => true]);
+    echo json_encode(['success' => true, 'message' => 'Gastos guardados correctamente']);
 
-} catch (PDOException $e) {
+} catch (Exception $e) {
     $conn->rollBack();
-    echo json_encode(['success' => false, 'message' => 'Error en la base de datos: ' . $e->getMessage()]);
+    echo json_encode(['success' => false, 'message' => 'Error: ' . $e->getMessage()]);
 }
 ?>

@@ -30,7 +30,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $conn->beginTransaction();
 
         $stmt = $conn->prepare("SELECT numero_actual FROM contadores WHERE documento = ? AND anio = ? FOR UPDATE");
-        $stmt->execute(['presupuestos', 2025]);
+        $stmt->execute(['presupuestos', 2026]);
         $numero_proyecto = $stmt->fetchColumn();
 
         if ($numero_proyecto === false) {

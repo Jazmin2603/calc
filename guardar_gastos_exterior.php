@@ -25,7 +25,6 @@ try {
         $descripcion = $gasto['descripcion'] ?? '';
         $total_usd = floatval($gasto['total_usd'] ?? 0);
         $tipo_cambio = floatval($gasto['tipo_cambio'] ?? 0);
-        $total_bs = floatval($gasto['total_bs'] ?? 0);
         $anexos = $gasto['anexos'] ?? '';
         $usuario = intval($gasto['usuario'] ?? $_SESSION['usuario']['id']);
         $fecha_pago = $gasto['fecha_pago'] ?? null;
@@ -44,7 +43,6 @@ try {
                 descripcion = ?, 
                 total_usd = ?, 
                 tipo_cambio = ?, 
-                total_bs = ?, 
                 anexos = ?, 
                 usuario = ?, 
                 fecha_pago = ?
@@ -56,7 +54,6 @@ try {
                 $descripcion, 
                 $total_usd, 
                 $tipo_cambio, 
-                $total_bs, 
                 $anexos, 
                 $usuario, 
                 $fecha_pago, 
@@ -67,8 +64,8 @@ try {
             // Insertar
             $stmt = $conn->prepare("INSERT INTO gastos_exterior 
                 (id_proyecto, fecha, tipo_gasto, categoria, descripcion, total_usd, 
-                 tipo_cambio, total_bs, anexos, usuario, fecha_pago) 
-                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)");
+                 tipo_cambio, anexos, usuario, fecha_pago) 
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)");
             $stmt->execute([
                 $id_proyecto, 
                 $fecha, 
@@ -77,7 +74,6 @@ try {
                 $descripcion, 
                 $total_usd, 
                 $tipo_cambio, 
-                $total_bs, 
                 $anexos, 
                 $usuario, 
                 $fecha_pago

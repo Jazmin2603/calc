@@ -34,13 +34,13 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $numero_proyecto = $stmt->fetchColumn();
 
         if ($numero_proyecto === false) {
-            throw new Exception("No se encontró el contador para presupuestos del 2025.");
+            throw new Exception("No se encontró el contador para presupuestos del 2026.");
         }
 
         $nuevo_numero = $numero_proyecto + 1;
 
         $stmt = $conn->prepare("UPDATE contadores SET numero_actual = ? WHERE documento = ? AND anio = ?");
-        $stmt->execute([$nuevo_numero, 'presupuestos', 2025]);
+        $stmt->execute([$nuevo_numero, 'presupuestos', 2026]);
 
         // Obtener los datos variables
         $stmt = $conn->query("SELECT * FROM datos_variables ORDER BY id DESC LIMIT 1");

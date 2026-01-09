@@ -73,25 +73,30 @@ $gastos_locales = $stmt->fetchAll(PDO::FETCH_ASSOC);
 $stmt = $conn->query("SELECT id, nombre FROM usuarios ORDER BY nombre");
 $usuarios = $stmt->fetchAll(PDO::FETCH_ASSOC);
 
-// Categorías de gastos e ingresos (según el PDF)
-$categorias_gastos = [
-    'Productos',
-    'Flete Internacional',
-    'Seguros',
-    'Despachante Aduanero',
-    'Otros',
-    'Transporte Local',
-    'Almacenaje',
-    'Aranceles de importacion',
-    'Multas',
-    'Gastos Administrativos',
-    'Gastos Legales',
-    'Comision Giros'
-];
+// Obtener tipos de gasto (categorías principales)
+$stmt = $conn->query("SELECT id, nombre FROM tipo_gasto ORDER BY nombre");
+$tipos_gasto = $stmt->fetchAll(PDO::FETCH_ASSOC);
 
-$categorias_ingresos = [
-    'Factura de Venta'
-];
+$tipos_gasto_js = [];
+foreach ($tipos_gasto as $tipo) {
+    $tipos_gasto_js[$tipo['id']] = $tipo['nombre'];
+}
+
+// Obtener todos los sub gastos agrupados por tipo
+$stmt = $conn->query("SELECT sg.id, sg.nombre, sg.id_tipo_gasto 
+                     FROM sub_gasto sg 
+                     WHERE sg.activo = 1 
+                     ORDER BY sg.id_tipo_gasto, sg.nombre");
+$sub_gastos_raw = $stmt->fetchAll(PDO::FETCH_ASSOC);
+
+// Agrupar sub gastos por tipo_gasto
+$sub_gastos_por_tipo = [];
+foreach ($sub_gastos_raw as $sub) {
+    $sub_gastos_por_tipo[$sub['id_tipo_gasto']][] = [
+        'id' => $sub['id'],
+        'nombre' => $sub['nombre']
+    ];
+}
 
 // Calcular totales
 $total_gastos_exterior_usd = array_sum(array_column($gastos_exterior, 'total_usd'));
@@ -354,8 +359,8 @@ $utilidad_porcentaje = $total_ingreso > 0 ? ($utilidad_neta / $total_ingreso) * 
     <script>
     const idProyectoFinanciero = <?= $id_proyecto_financiero ?>;
     const usuarios = <?= json_encode($usuarios) ?>;
-    const categoriasGastos = <?= json_encode($categorias_gastos) ?>;
-    const categoriasIngresos = <?= json_encode($categorias_ingresos) ?>;
+    const tiposGasto = <?= json_encode($tipos_gasto) ?>;
+    const subGastosPorTipo  = <?= json_encode($sub_gastos_por_tipo) ?>;
 
     // Configurar valores para select de usuarios
     const usuariosSelect = usuarios.reduce((acc, user) => {
@@ -363,11 +368,21 @@ $utilidad_porcentaje = $total_ingreso > 0 ? ($utilidad_neta / $total_ingreso) * 
         return acc;
     }, {});
 
-    // Configurar valores para select de categorías
-    const categoriasSelect = {};
-    categoriasGastos.forEach(cat => {
-        categoriasSelect[cat] = cat;
+    // Configurar valores para select de tipos de gasto
+    const tiposGastoSelect = {};
+    tiposGasto.forEach(tipo => {
+        tiposGastoSelect[tipo.id] = tipo.nombre;
     });
+
+    // Función para obtener sub gastos según tipo seleccionado
+    function getSubGastosSelect(tipoId) {
+        const subGastos = subGastosPorTipo[tipoId] || [];
+        const select = {};
+        subGastos.forEach(sub => {
+            select[sub.id] = sub.nombre;
+        });
+        return select;
+    }
 
     // Tabla de Gastos en el Exterior
     const tableExterior = new Tabulator("#gastos-exterior-grid", {
@@ -380,8 +395,34 @@ $utilidad_porcentaje = $total_ingreso > 0 ? ($utilidad_neta / $total_ingreso) * 
             {title: "Tipo Gasto", field: "tipo_gasto", editor: "select", 
              editorParams: {values: {Producto: "Producto", Servicio: "Servicio"}}, 
              width: 120, validator: "required"},
-            {title: "Categoría", field: "categoria", editor: "select", 
-             editorParams: {values: categoriasSelect}, width: 180, validator: "required"},
+            {title: "Categoría", field: "categoria_id", editor: "select", 
+             editorParams: {values: tiposGastoSelect}, 
+             formatter: function(cell) {
+                 const val = cell.getValue();
+                 return tiposGastoSelect[val] || '';
+             },
+             cellEdited: function(cell) {
+                 // Al cambiar categoría, resetear subcategoría
+                 const row = cell.getRow();
+                 row.update({sub_categoria_id: null});
+             },
+             width: 180, validator: "required"},
+             {title: "Sub Categoría", field: "sub_categoria_id", editor: "select",
+             editorParams: function(cell) {
+                 const row = cell.getRow();
+                 const categoriaId = row.getData().categoria_id;
+                 return {values: categoriaId ? getSubGastosSelect(categoriaId) : {}};
+             },
+             formatter: function(cell) {
+                 const val = cell.getValue();
+                 const row = cell.getRow();
+                 const categoriaId = row.getData().categoria_id;
+                 if (!val || !categoriaId) return '';
+                 const subGastos = subGastosPorTipo[categoriaId] || [];
+                 const subGasto = subGastos.find(s => s.id == val);
+                 return subGasto ? subGasto.nombre : '';
+             },
+             width: 180},
             {title: "Descripción", field: "descripcion", editor: "input", width: 250},
             {title: "Total USD", field: "total_usd", editor: "number", align:"right",
              formatter: "money", formatterParams: {symbol: " $", symbolAfter:true, thousand: ".", decimal:",", precision: 2}, hozAlign: "right",
@@ -402,7 +443,7 @@ $utilidad_porcentaje = $total_ingreso > 0 ? ($utilidad_neta / $total_ingreso) * 
                  return usuariosSelect[val] || val;
              },
              width: 150},
-            {title: "Fecha Pago", field: "fecha_pago", editor: "date", width: 120},
+            {title: "Fecha Pago", field: "fecha_pago", editor: "date", width: 80},
             {title: "Acciones", formatter: "buttonCross", width: 60, hozAlign: "center",
              cellClick: function(e, cell) {
                 eliminarFila(cell, 'exterior');
@@ -433,8 +474,34 @@ $utilidad_porcentaje = $total_ingreso > 0 ? ($utilidad_neta / $total_ingreso) * 
             {title: "Tipo Gasto", field: "tipo_gasto", editor: "select",
              editorParams: {values: {Producto: "Producto", Servicio: "Servicio"}},
              width: 120, validator: "required"},
-            {title: "Categoría", field: "categoria", editor: "select",
-             editorParams: {values: categoriasSelect}, width: 180, validator: "required"},
+            {title: "Categoría", field: "categoria_id", editor: "select",
+             editorParams: {values: tiposGastoSelect},
+             formatter: function(cell) {
+                 const val = cell.getValue();
+                 return tiposGastoSelect[val] || '';
+             },
+             cellEdited: function(cell) {
+                 // Al cambiar categoría, resetear subcategoría
+                 const row = cell.getRow();
+                 row.update({sub_categoria_id: null});
+             },
+             width: 180, validator: "required"},
+            {title: "Sub Categoría", field: "sub_categoria_id", editor: "select",
+             editorParams: function(cell) {
+                 const row = cell.getRow();
+                 const categoriaId = row.getData().categoria_id;
+                 return {values: categoriaId ? getSubGastosSelect(categoriaId) : {}};
+             },
+             formatter: function(cell) {
+                 const val = cell.getValue();
+                 const row = cell.getRow();
+                 const categoriaId = row.getData().categoria_id;
+                 if (!val || !categoriaId) return '';
+                 const subGastos = subGastosPorTipo[categoriaId] || [];
+                 const subGasto = subGastos.find(s => s.id == val);
+                 return subGasto ? subGasto.nombre : '';
+             },
+             width: 180},
             {title: "Descripción", field: "descripcion", editor: "input", width: 250},
             {title: "Total Bs", field: "total_bs", editor: "number",
              formatter: "money", formatterParams: {symbol: " Bs", symbolAfter:true, thousand: ".", decimal: ",", precision: 2},
@@ -461,7 +528,7 @@ $utilidad_porcentaje = $total_ingreso > 0 ? ($utilidad_neta / $total_ingreso) * 
                  return usuariosSelect[val] || val;
              },
              width: 150},
-            {title: "Fecha Pago", field: "fecha_pago", editor: "date", width: 120},
+            {title: "Fecha Pago", field: "fecha_pago", editor: "date", width: 80},
             {title: "Acciones", formatter: "buttonCross", width: 60, hozAlign: "center",
              cellClick: function(e, cell) {
                 eliminarFila(cell, 'local');
@@ -487,7 +554,7 @@ $utilidad_porcentaje = $total_ingreso > 0 ? ($utilidad_neta / $total_ingreso) * 
             fecha: new Date().toISOString().split('T')[0],
             usuario: <?= $_SESSION['usuario']['id'] ?>,
             tipo_gasto: 'Producto',
-            tipo_cambio: 7.0,
+            tipo_cambio: 17.0,
             total_usd: 0,
             total_bs: 0
         }, true);
@@ -543,39 +610,78 @@ $utilidad_porcentaje = $total_ingreso > 0 ? ($utilidad_neta / $total_ingreso) * 
     }
 
     function guardarGastos(url, datos, tipo) {
-        // Validar datos antes de enviar
-        let errores = [];
-        datos.forEach((gasto, index) => {
-            if (!gasto.fecha) errores.push(`Fila ${index + 1}: Falta fecha`);
-            if (!gasto.tipo_gasto) errores.push(`Fila ${index + 1}: Falta tipo de gasto`);
-            if (!gasto.categoria) errores.push(`Fila ${index + 1}: Falta categoría`);
-        });
 
-        if (errores.length > 0) {
-            alert('Errores de validación:\n' + errores.join('\n'));
-            return;
+    const errores = [];
+    const gastosLimpios = [];
+
+    datos.forEach((gasto, index) => {
+
+        // Validaciones comunes
+        if (!gasto.fecha) errores.push(`Fila ${index + 1}: Falta fecha`);
+        if (!gasto.tipo_gasto) errores.push(`Fila ${index + 1}: Falta tipo de gasto`);
+        if (!gasto.categoria_id) errores.push(`Fila ${index + 1}: Falta categoría`);
+
+        // Validaciones específicas
+        if (tipo === 'exterior') {
+            if (!gasto.total_usd || Number(gasto.total_usd) <= 0) {
+                errores.push(`Fila ${index + 1}: Total USD inválido`);
+            }
         }
 
-        fetch(url, {
-            method: 'POST',
-            headers: {'Content-Type': 'application/json'},
-            body: JSON.stringify({
-                id_proyecto: idProyectoFinanciero,
-                gastos: datos
-            })
-        }).then(response => response.json())
-        .then(res => {
-            if (res.success) {
-                //alert('Gastos guardados correctamente');
-                location.reload();
-            } else {
-                alert('Error al guardar: ' + res.message);
+        if (tipo === 'locales') {
+            if (!gasto.total_bs || Number(gasto.total_bs) <= 0) {
+                errores.push(`Fila ${index + 1}: Total Bs inválido`);
             }
-        }).catch(error => {
-            console.error('Error:', error);
-            alert('Error al guardar los gastos');
+        }
+
+        // Normalizar datos
+        gastosLimpios.push({
+            id: gasto.id ?? null,
+            id_proyecto: idProyectoFinanciero,
+            fecha: gasto.fecha,
+            tipo_gasto: gasto.tipo_gasto,
+            categoria_id: gasto.categoria_id,
+            sub_categoria_id: gasto.sub_categoria_id ?? null,
+            descripcion: gasto.descripcion ?? '',
+            total_usd: parseFloat(gasto.total_usd) || 0,
+            tipo_cambio: parseFloat(gasto.tipo_cambio) || 0,
+            total_bs: parseFloat(gasto.total_bs) || 0,
+            facturado: gasto.facturado ?? 'no',
+            credito_fiscal: parseFloat(gasto.credito_fiscal) || 0,
+            neto: parseFloat(gasto.neto) || 0,
+            anexos: gasto.anexos ?? '',
+            usuario: gasto.usuario,
+            fecha_pago: gasto.fecha_pago ?? null
         });
+    });
+
+    if (errores.length > 0) {
+        alert('Errores de validación:\n\n' + errores.join('\n'));
+        return;
     }
+
+    fetch(url, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+            id_proyecto: idProyectoFinanciero,
+            gastos: gastosLimpios
+        })
+    })
+    .then(res => res.json())
+    .then(res => {
+        if (res.success) {
+            location.reload();
+        } else {
+            alert('Error al guardar: ' + res.message);
+        }
+    })
+    .catch(err => {
+        console.error(err);
+        alert('Error de conexión al guardar gastos');
+    });
+}
+
     </script>
 </body>
 </html>

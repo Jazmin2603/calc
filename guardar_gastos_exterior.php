@@ -22,6 +22,9 @@ try {
         $fecha = $gasto['fecha'] ?? null;
         $tipo_gasto = $gasto['tipo_gasto'] ?? '';
         $categoria = $gasto['categoria'] ?? '';
+        $categoria_id = isset($gasto['categoria_id']) ? intval($gasto['categoria_id']) : null;
+        $sub_categoria = $gasto['sub_categoria'] ?? null;
+        $sub_categoria_id = isset($gasto['sub_categoria_id']) ? intval($gasto['sub_categoria_id']) : null;
         $descripcion = $gasto['descripcion'] ?? '';
         $total_usd = floatval($gasto['total_usd'] ?? 0);
         $tipo_cambio = floatval($gasto['tipo_cambio'] ?? 0);
@@ -30,7 +33,7 @@ try {
         $fecha_pago = $gasto['fecha_pago'] ?? null;
 
         // Validaciones
-        if (empty($fecha) || empty($tipo_gasto) || empty($categoria)) {
+        if (empty($fecha) || empty($tipo_gasto) || empty($categoria_id)) {
             throw new Exception("Faltan datos obligatorios en uno de los gastos");
         }
 
@@ -40,6 +43,9 @@ try {
                 fecha = ?, 
                 tipo_gasto = ?, 
                 categoria = ?,
+                categoria_id = ?,
+                sub_categoria = ?,
+                sub_categoria_id = ?,
                 descripcion = ?, 
                 total_usd = ?, 
                 tipo_cambio = ?, 
@@ -51,6 +57,9 @@ try {
                 $fecha, 
                 $tipo_gasto, 
                 $categoria,
+                $categoria_id,
+                $sub_categoria,
+                $sub_categoria_id,
                 $descripcion, 
                 $total_usd, 
                 $tipo_cambio, 
@@ -63,14 +72,17 @@ try {
         } else {
             // Insertar
             $stmt = $conn->prepare("INSERT INTO gastos_exterior 
-                (id_proyecto, fecha, tipo_gasto, categoria, descripcion, total_usd, 
-                 tipo_cambio, anexos, usuario, fecha_pago) 
-                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)");
+                (id_proyecto, fecha, tipo_gasto, categoria, categoria_id, sub_categoria, 
+                 sub_categoria_id, descripcion, total_usd, tipo_cambio, anexos, usuario, fecha_pago) 
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)");
             $stmt->execute([
                 $id_proyecto, 
                 $fecha, 
                 $tipo_gasto,
                 $categoria,
+                $categoria_id,
+                $sub_categoria,
+                $sub_categoria_id,
                 $descripcion, 
                 $total_usd, 
                 $tipo_cambio, 

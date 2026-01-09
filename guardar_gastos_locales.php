@@ -22,6 +22,9 @@ try {
         $fecha = $gasto['fecha'] ?? null;
         $tipo_gasto = $gasto['tipo_gasto'] ?? '';
         $categoria = $gasto['categoria'] ?? '';
+        $categoria_id = isset($gasto['categoria_id']) ? intval($gasto['categoria_id']) : null;
+        $sub_categoria = $gasto['sub_categoria'] ?? null;
+        $sub_categoria_id = isset($gasto['sub_categoria_id']) ? intval($gasto['sub_categoria_id']) : null;
         $descripcion = $gasto['descripcion'] ?? '';
         $total_bs = floatval($gasto['total_bs'] ?? 0);
         $facturado = $gasto['facturado'] ?? 'no';
@@ -31,16 +34,18 @@ try {
         $fecha_pago = $gasto['fecha_pago'] ?? null;
 
         // Validaciones
-        if (empty($fecha) || empty($tipo_gasto) || empty($categoria)) {
+        if (empty($fecha) || empty($tipo_gasto) || empty($categoria_id)) {
             throw new Exception("Faltan datos obligatorios en uno de los gastos");
         }
-
 
         if ($id) {
             $stmt = $conn->prepare("UPDATE gastos_locales SET 
                 fecha = ?, 
                 tipo_gasto = ?, 
                 categoria = ?,
+                categoria_id = ?,
+                sub_categoria = ?,
+                sub_categoria_id = ?,
                 descripcion = ?, 
                 total_bs = ?, 
                 facturado = ?, 
@@ -53,10 +58,13 @@ try {
                 $fecha, 
                 $tipo_gasto, 
                 $categoria,
+                $categoria_id,
+                $sub_categoria,
+                $sub_categoria_id,
                 $descripcion, 
                 $total_bs, 
                 $facturado, 
-                $credito_fiscal, 
+                $credito_fiscal,
                 $anexo, 
                 $usuario, 
                 $fecha_pago, 
@@ -65,18 +73,22 @@ try {
             ]);
         } else {
             $stmt = $conn->prepare("INSERT INTO gastos_locales 
-                (id_proyecto, fecha, tipo_gasto, categoria, descripcion, total_bs, 
-                 facturado, credito_fiscal, anexos, usuario, fecha_pago) 
-                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)");
+                (id_proyecto, fecha, tipo_gasto, categoria, categoria_id, sub_categoria,
+                 sub_categoria_id, descripcion, total_bs, facturado, credito_fiscal, 
+                 anexos, usuario, fecha_pago) 
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)");
             $stmt->execute([
                 $id_proyecto, 
                 $fecha, 
                 $tipo_gasto,
                 $categoria,
+                $categoria_id,
+                $sub_categoria,
+                $sub_categoria_id,
                 $descripcion, 
                 $total_bs, 
                 $facturado, 
-                $credito_fiscal, 
+                $credito_fiscal,
                 $anexo, 
                 $usuario, 
                 $fecha_pago

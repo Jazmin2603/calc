@@ -270,4 +270,22 @@ function obtenerProyectosRecientesAlternativo($conn, $limite = 10) {
     return $stmt->fetchAll(PDO::FETCH_ASSOC);
 }
 
+function obtenerResumenAnualUsuario($conn, $id_usuario) {
+    $stmt = $conn->prepare("
+        SELECT 
+            COUNT(DISTINCT p.id_proyecto) as total_proyectos,
+            COUNT(DISTINCT CASE WHEN e.estado = 'Ganado' THEN p.id_proyecto END) as cantidad_ganados,
+            COUNT(DISTINCT CASE WHEN e.estado = 'Abierto' THEN p.id_proyecto END) as cantidad_abiertos,
+            COALESCE(SUM(CASE WHEN e.estado = 'Ganado' THEN i.total_hoy ELSE 0 END), 0) as monto_ganado,
+            COALESCE(SUM(CASE WHEN e.estado = 'Abierto' THEN i.total_hoy ELSE 0 END), 0) as monto_abierto
+        FROM proyecto p
+        LEFT JOIN estados e ON p.estado_id = e.id
+        LEFT JOIN items i ON p.id_proyecto = i.id_proyecto
+        WHERE p.id_usuario = ? 
+        AND YEAR(p.fecha_proyecto) = YEAR(CURDATE())
+    ");
+    $stmt->execute([$id_usuario]);
+    return $stmt->fetch(PDO::FETCH_ASSOC);
+}
+
 ?>

@@ -6,7 +6,7 @@ if (!defined('DB_NAME')) define('DB_NAME', 'filsdb');
 
 if (!defined('ROL_VENDEDOR')) define('ROL_VENDEDOR', 1);
 if (!defined('ROL_GERENTE')) define('ROL_GERENTE', 2);
-//if (!defined('ROL_FINANCIERO')) define('ROL_FINACIERO', 3);
+if (!defined('ROL_FINANCIERO')) define('ROL_FINANCIERO', 3);
 
 // Conexión a la base de datos
 try {

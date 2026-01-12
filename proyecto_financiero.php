@@ -406,7 +406,7 @@ $utilidad_porcentaje = $total_ingreso > 0 ? ($utilidad_neta / $total_ingreso) * 
                  const row = cell.getRow();
                  row.update({sub_categoria_id: null});
              },
-             width: 180, validator: "required"},
+             width: 150, validator: "required"},
              {title: "Sub Categoría", field: "sub_categoria_id", editor: "select",
              editorParams: function(cell) {
                  const row = cell.getRow();
@@ -422,7 +422,7 @@ $utilidad_porcentaje = $total_ingreso > 0 ? ($utilidad_neta / $total_ingreso) * 
                  const subGasto = subGastos.find(s => s.id == val);
                  return subGasto ? subGasto.nombre : '';
              },
-             width: 180},
+             width: 160},
             {title: "Descripción", field: "descripcion", editor: "input", width: 250},
             {title: "Total USD", field: "total_usd", editor: "number", align:"right",
              formatter: "money", formatterParams: {symbol: " $", symbolAfter:true, thousand: ".", decimal:",", precision: 2}, hozAlign: "right",
@@ -431,10 +431,10 @@ $utilidad_porcentaje = $total_ingreso > 0 ? ($utilidad_neta / $total_ingreso) * 
              width: 130, validator: "required"},
             {title: "TC", field: "tipo_cambio", editor: "number", 
              formatter: "money", formatterParams: {precision: 2}, width: 100},
-            {title: "Total Bs", field: "total_bs", editor: "number", align: "right", formatter: "money", formatterParams: {symbol: " Bs", symbolAfter: true, thousand: ".", decimal:",", precision: 2}, hozAlign: "right",
+            {title: "Total Bs", field: "total_bs", align: "right", formatter: "money", formatterParams: {symbol: " Bs", symbolAfter: true, thousand: ".", decimal:",", precision: 2}, hozAlign: "right",
              bottomCalc: "sum", bottomCalcFormatter: "money",
              bottomCalcFormatterParams: {symbol: " Bs", symbolAfter: true, thousand: ".", decimal:",", precision: 2},
-             width: 130},
+             width: 120},
             {title: "Anexos", field: "anexos", editor: "input", width: 150},
             {title: "Usuario", field: "usuario", editor: "select", 
              editorParams: {values: usuariosSelect}, 
@@ -443,7 +443,7 @@ $utilidad_porcentaje = $total_ingreso > 0 ? ($utilidad_neta / $total_ingreso) * 
                  return usuariosSelect[val] || val;
              },
              width: 150},
-            {title: "Fecha Pago", field: "fecha_pago", editor: "date", width: 80},
+            {title: "Fecha Pago", field: "fecha_pago", editor: "date", width: 100},
             {title: "Acciones", formatter: "buttonCross", width: 60, hozAlign: "center",
              cellClick: function(e, cell) {
                 eliminarFila(cell, 'exterior');
@@ -485,7 +485,7 @@ $utilidad_porcentaje = $total_ingreso > 0 ? ($utilidad_neta / $total_ingreso) * 
                  const row = cell.getRow();
                  row.update({sub_categoria_id: null});
              },
-             width: 180, validator: "required"},
+             width: 150, validator: "required"},
             {title: "Sub Categoría", field: "sub_categoria_id", editor: "select",
              editorParams: function(cell) {
                  const row = cell.getRow();
@@ -501,7 +501,7 @@ $utilidad_porcentaje = $total_ingreso > 0 ? ($utilidad_neta / $total_ingreso) * 
                  const subGasto = subGastos.find(s => s.id == val);
                  return subGasto ? subGasto.nombre : '';
              },
-             width: 180},
+             width: 160},
             {title: "Descripción", field: "descripcion", editor: "input", width: 250},
             {title: "Total Bs", field: "total_bs", editor: "number",
              formatter: "money", formatterParams: {symbol: " Bs", symbolAfter:true, thousand: ".", decimal: ",", precision: 2},
@@ -514,8 +514,8 @@ $utilidad_porcentaje = $total_ingreso > 0 ? ($utilidad_neta / $total_ingreso) * 
              formatter: "money", formatterParams: {symbol: " Bs", symbolAfter:true, thousand: ".", decimal:",", precision: 2}, hozAlign:"right",
              bottomCalc: "sum", bottomCalcFormatter: "money",
              bottomCalcFormatterParams: {symbol: " Bs", symbolAfter:true, thousand: ".", decimal:",", precision: 2},
-             width: 120},
-            {title: "Neto", field: "neto", editor: "number",
+             width: 90},
+            {title: "Neto", field: "neto",
              formatter: "money", formatterParams: {symbol: " Bs", symbolAfter:true,thousand: ".", decimal:",", precision: 2}, hozAlign:"right",
              bottomCalc: "sum", bottomCalcFormatter: "money",
              bottomCalcFormatterParams: {symbol: " Bs", symbolAfter:true, thousand: ".", decimal:",", precision: 2},

@@ -390,7 +390,6 @@ if ($fin_rango - $inicio_rango < $rango_paginas - 1) {
                     </select>
                 <?php endif; ?>
 
-                <input type="text" name="buscar" placeholder="Buscar..." value="<?= htmlspecialchars($busqueda) ?>">
             </div>
 
             <div class="filtro-derecha">
@@ -402,7 +401,6 @@ if ($fin_rango - $inicio_rango < $rango_paginas - 1) {
                         </option>
                     <?php endforeach; ?>
                 </select>
-                <button type="submit" class="btn">Buscar</button>
             </div>
         </form>
     </div>

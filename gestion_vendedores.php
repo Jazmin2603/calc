@@ -127,6 +127,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['resetear'])) {
                             <option value="">Seleccione un rol</option>
                             <option value="1">Vendedor</option>
                             <option value="2">Gerente</option>
+                            <option value="3">Financiero</option>
                         </select>
                     </div>
                     

@@ -1,19 +1,30 @@
 <?php 
+session_start();
 include 'includes/config.php'; 
 include 'includes/auth.php';
+
+// Si ya está autenticado y no es primer ingreso, redirigir al dashboard
+if (isset($_SESSION['usuario']) && (!isset($_SESSION['usuario']['primer_ingreso']) || $_SESSION['usuario']['primer_ingreso'] == 0)) {
+    header('Location: dashboard.php');
+    exit();
+}
 
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $username = trim($_POST['username'] ?? '');
     $password = trim($_POST['password'] ?? '');
     
-    if (autenticarUsuario($username, $password)) {
-        if (isset($_SESSION['usuario'])) {
-            header('Location: dashboard.php');
-            exit();
-        }
-    } else {
-        header('Location: index.php?error=Credenciales incorrectas');
+    $resultado = autenticarUsuario($username, $password);
+    
+    if ($resultado === 'exito') {
+        header('Location: dashboard.php');
         exit();
+    } elseif ($resultado === 'primer_ingreso') {
+        header('Location: cambiar_contrasena.php?obligatorio=1');
+        exit();
+    } elseif ($resultado === 'inactivo') {
+        $error = "Usuario inactivo";
+    } else {
+        $error = "Credenciales incorrectas";
     }
 }
 ?>
@@ -29,8 +40,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 <body>
     <div class="login-container">
         <h1>Iniciar Sesión</h1>
-        <?php if(isset($_GET['error'])): ?>
-            <div class="error"><?php echo htmlspecialchars($_GET['error']); ?></div>
+        <?php if(isset($error)): ?>
+            <div class="error"><?php echo htmlspecialchars($error); ?></div>
         <?php endif; ?>
         <form method="post">
             <div class="form-login">
@@ -46,4 +57,3 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     </div>
 </body>
 </html>
-

@@ -8,15 +8,26 @@ if (!isset($_SESSION['usuario']) || $_SESSION['usuario']['rol'] != ROL_GERENTE) 
     exit();
 }
 
-// Obtener todas las estadísticas
-$usuariosTopVentas = obtenerUsuariosTopVentas($conn, 5);
-$proyectosPorMes = obtenerProyectosPorMes($conn);
-$estadisticasSucursales = obtenerEstadisticasSucursales($conn);
-$distribucionEstados = obtenerDistribucionEstados($conn);
-$estadisticasGenerales = obtenerEstadisticasGenerales($conn);
-$proyectosRecientes = obtenerProyectosRecientes($conn, 10);
+$gestion_seleccionada = isset($_GET['gestion']) ? (int)$_GET['gestion'] : (int)date('Y');
 
-// Preparar datos para gráficos
+try {
+    $stmtAnios = $conn->query("SELECT DISTINCT YEAR(fecha_proyecto) as anio FROM proyecto ORDER BY anio DESC");
+    $anios_disponibles = $stmtAnios->fetchAll(PDO::FETCH_COLUMN);
+    
+    if (empty($anios_disponibles)) {
+        $anios_disponibles[] = (int)date('Y');
+    }
+} catch (PDOException $e) {
+    $anios_disponibles = [(int)date('Y')];
+}
+
+$usuariosTopVentas = obtenerUsuariosTopVentas($conn, 5, $gestion_seleccionada);
+$proyectosPorMes = obtenerProyectosPorMes($conn, $gestion_seleccionada);
+$estadisticasSucursales = obtenerEstadisticasSucursales($conn, $gestion_seleccionada);
+$distribucionEstados = obtenerDistribucionEstados($conn, $gestion_seleccionada);
+$estadisticasGenerales = obtenerEstadisticasGenerales($conn, $gestion_seleccionada);
+$proyectosRecientes = obtenerProyectosRecientes($conn, 10, $gestion_seleccionada);
+
 $meses = ['Ene', 'Feb', 'Mar', 'Abr', 'May', 'Jun', 'Jul', 'Ago', 'Sep', 'Oct', 'Nov', 'Dic'];
 $proyectosMensuales = array_fill(0, 12, 0);
 $montosMensuales = array_fill(0, 12, 0);
@@ -43,14 +54,28 @@ foreach ($proyectosPorMes as $dato) {
 <body>
     <div class="dashboard-container">
         <header>
-            <div class="header-left">
-                <img src="assets/logo.png" class="logo" alt="Logo">
-                <h1>Estadísticas Gerenciales</h1>
-            </div>
+        <div class="header-left">
+            <img src="assets/logo.png" class="logo" alt="Logo">
+            <h1>Estadísticas Gerenciales - <?= $gestion_seleccionada ?></h1>
+        </div>
+        
+        <div class="header-right">
+            <form action="" method="GET" class="filter-container">
+                <label for="gestion">Gestión:</label>
+                <select name="gestion" id="gestion" class="select-gestion" onchange="this.form.submit()">
+                    <?php foreach ($anios_disponibles as $anio): ?>
+                        <option value="<?= $anio ?>" <?= ($anio == $gestion_seleccionada) ? 'selected' : '' ?>>
+                            <?= $anio ?>
+                        </option>
+                    <?php endforeach; ?>
+                </select>
+            </form>
+            
             <div class="header-buttons">
                 <a href="dashboard.php" class="back-btn">Volver al Dashboard</a>
             </div>
-        </header>
+        </div>
+    </header>
         
         <div class="dashboard-content">
             <!-- Estadísticas generales -->
@@ -85,28 +110,35 @@ foreach ($proyectosPorMes as $dato) {
             <div class="chart-container">
                 <h3>Top 5 Vendedores</h3>
                 <div class="table-container">
-                    <table>
-                        <thead>
-                            <tr>
-                                <th>#</th>
-                                <th>Usuario</th>
-                                <th>Sucursal</th>
-                                <th>Proyectos Ganados</th>
-                                <th>Total Ventas</th>
-                            </tr>
-                        </thead>
-                        <tbody>
-                            <?php foreach ($usuariosTopVentas as $index => $vendedor): ?>
-                            <tr>
-                                <td><?= $index + 1 ?></td>
-                                <td><?= htmlspecialchars($vendedor['nombre']) ?></td>
-                                <td><?= htmlspecialchars($vendedor['sucursal']) ?></td>
-                                <td><?= $vendedor['total_proyectos'] ?></td>
-                                <td><?= number_format($vendedor['total_ventas'], 2, '.', ',') ?> Bs</td>
-                            </tr>
-                            <?php endforeach; ?>
-                        </tbody>
-                    </table>
+                    <?php if (empty($usuariosTopVentas)): ?>
+                        <div class="no-data-message">
+                            <p> No hay vendedores con ventas registradas en el año <?= $gestion_seleccionada ?></p>
+                            <p class="small-text"> Los vendedores aparecerán aquí una vez que registren proyectos ganados.</p>
+                        </div>
+                    <?php else: ?>
+                        <table>
+                            <thead>
+                                <tr>
+                                    <th>#</th>
+                                    <th>Usuario</th>
+                                    <th>Sucursal</th>
+                                    <th>Proyectos Ganados</th>
+                                    <th>Total Ventas</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                <?php foreach ($usuariosTopVentas as $index => $vendedor): ?>
+                                <tr>
+                                    <td><?= $index + 1 ?></td>
+                                    <td><?= htmlspecialchars($vendedor['nombre']) ?></td>
+                                    <td><?= htmlspecialchars($vendedor['sucursal']) ?></td>
+                                    <td><?= $vendedor['total_proyectos'] ?></td>
+                                    <td><?= number_format($vendedor['total_ventas'], 2, '.', ',') ?> Bs</td>
+                                </tr>
+                                <?php endforeach; ?>
+                            </tbody>
+                        </table>
+                    <?php endif; ?>
                 </div>
             </div>
 
@@ -143,9 +175,8 @@ foreach ($proyectosPorMes as $dato) {
                 </div>
             </div>
 
-            <!-- Proyectos recientes -->
             <div class="chart-container">
-                <h3>Proyectos Recientes</h3>
+                <h3>Ultimos Proyectos</h3>
                 <div class="table-container">
                     <table>
                         <thead>

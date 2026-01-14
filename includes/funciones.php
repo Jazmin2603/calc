@@ -85,44 +85,51 @@ function actualizar($id_proyecto) {
 }
 
 // Obtener usuarios con más ventas (ganados)
-function obtenerUsuariosTopVentas($conn, $limite = 5) {
+function obtenerUsuariosTopVentas($conn, $limite = 5, $gestion = null) {
+    $gestion = $gestion ?? date('Y');
     $stmt = $conn->prepare("
         SELECT u.id, u.nombre, u.username, s.nombre as sucursal, 
                COUNT(DISTINCT p.id_proyecto) as total_proyectos,
-               COALESCE(SUM(i.total_hoy), 0) as total_ventas
+               COALESCE(SUM(i.total_usd_bo), 0) as total_ventas
         FROM usuarios u
-        LEFT JOIN proyecto p ON u.id = p.id_usuario
-        LEFT JOIN items i ON p.id_proyecto = i.id_proyecto
-        LEFT JOIN estados e ON p.estado_id = e.id
-        LEFT JOIN sucursales s ON u.sucursal_id = s.id
-        WHERE e.estado = 'Ganado'
+        INNER JOIN proyecto p ON u.id = p.id_usuario 
+            AND YEAR(p.fecha_proyecto) = :gestion
+        INNER JOIN items i ON p.id_proyecto = i.id_proyecto
+        INNER JOIN estados e ON p.estado_id = e.id 
+            AND e.estado = 'Ganado'
+        INNER JOIN sucursales s ON u.sucursal_id = s.id
         GROUP BY u.id, u.nombre, u.username, s.nombre
+        HAVING total_ventas > 0
         ORDER BY total_ventas DESC
         LIMIT :limite
     ");
     $stmt->bindValue(':limite', (int)$limite, PDO::PARAM_INT);
+    $stmt->bindValue(':gestion', (int)$gestion, PDO::PARAM_INT);
     $stmt->execute();
     return $stmt->fetchAll(PDO::FETCH_ASSOC);
 }
 
 // Obtener proyectos por mes del año actual
-function obtenerProyectosPorMes($conn) {
+function obtenerProyectosPorMes($conn, $gestion = null) {
+    $gestion = $gestion ?? date('Y');
     $stmt = $conn->prepare("
         SELECT MONTH(p.fecha_proyecto) as mes,
                COUNT(DISTINCT p.id_proyecto) as total_proyectos,
-               COALESCE(SUM(i.total_hoy), 0) as monto_total
+               COALESCE(SUM(i.total_usd_bo), 0) as monto_total
         FROM proyecto p
         LEFT JOIN items i ON p.id_proyecto = i.id_proyecto
-        WHERE YEAR(p.fecha_proyecto) = YEAR(CURDATE())
+        WHERE YEAR(p.fecha_proyecto) = :gestion
         GROUP BY MONTH(p.fecha_proyecto)
         ORDER BY mes
     ");
+    $stmt->bindValue(':gestion', (int)$gestion, PDO::PARAM_INT);
     $stmt->execute();
     return $stmt->fetchAll(PDO::FETCH_ASSOC);
 }
 
 // Obtener estadísticas por sucursal
-function obtenerEstadisticasSucursales($conn) {
+function obtenerEstadisticasSucursales($conn, $gestion = null) {
+    $gestion = $gestion ?? date('Y');
     $stmt = $conn->prepare("
         SELECT s.id, s.nombre as sucursal,
                COUNT(DISTINCT p.id_proyecto) as total_proyectos,
@@ -130,56 +137,57 @@ function obtenerEstadisticasSucursales($conn) {
                COUNT(DISTINCT CASE WHEN e.estado = 'Abierto' THEN p.id_proyecto END) as abiertos,
                COUNT(DISTINCT CASE WHEN e.estado = 'Perdido' THEN p.id_proyecto END) as perdidos,
                COUNT(DISTINCT CASE WHEN e.estado = 'Cerrado' THEN p.id_proyecto END) as cancelados,
-               COALESCE(SUM(CASE WHEN e.estado = 'Ganado' THEN i.total_hoy ELSE 0 END), 0) as monto_total
+               COALESCE(SUM(CASE WHEN e.estado = 'Ganado' THEN i.total_usd_bo ELSE 0 END), 0) as monto_total
         FROM sucursales s
-        LEFT JOIN proyecto p ON s.id = p.sucursal_id
+        LEFT JOIN proyecto p ON s.id = p.sucursal_id AND YEAR(p.fecha_proyecto) = :gestion
         LEFT JOIN items i ON p.id_proyecto = i.id_proyecto
         LEFT JOIN estados e ON p.estado_id = e.id
         WHERE s.id != 1
         GROUP BY s.id, s.nombre
         ORDER BY monto_total DESC
     ");
+    $stmt->bindValue(':gestion', (int)$gestion, PDO::PARAM_INT);
     $stmt->execute();
     return $stmt->fetchAll(PDO::FETCH_ASSOC);
 }
 
 // Obtener distribución de estados de proyectos
-function obtenerDistribucionEstados($conn) {
+function obtenerDistribucionEstados($conn, $gestion = null) {
+    $gestion = $gestion ?? date('Y');
     $stmt = $conn->prepare("
         SELECT e.id, e.estado, 
                COUNT(p.id_proyecto) as cantidad,
-               COALESCE(SUM(i.total_hoy), 0) as monto_total
+               COALESCE(SUM(i.total_usd_bo), 0) as monto_total
         FROM estados e
-        LEFT JOIN proyecto p ON e.id = p.estado_id
+        LEFT JOIN proyecto p ON e.id = p.estado_id AND YEAR(p.fecha_proyecto) = :gestion
         LEFT JOIN items i ON p.id_proyecto = i.id_proyecto
         GROUP BY e.id, e.estado
         ORDER BY cantidad DESC
     ");
+    $stmt->bindValue(':gestion', (int)$gestion, PDO::PARAM_INT);
     $stmt->execute();
     return $stmt->fetchAll(PDO::FETCH_ASSOC);
 }
 
 // Obtener estadísticas generales del sistema
-function obtenerEstadisticasGenerales($conn) {
+function obtenerEstadisticasGenerales($conn, $gestion = null) {
+    $gestion = $gestion ?? date('Y');
     $stmt = $conn->prepare("
         SELECT 
-            (SELECT COUNT(*) FROM usuarios) AS total_usuarios,
-            (SELECT COUNT(*) FROM proyecto) AS total_proyectos,
-            (SELECT COALESCE(SUM(i.total_hoy), 0)
+            (SELECT COUNT(*) FROM proyecto WHERE YEAR(fecha_proyecto) = :g1) AS total_proyectos,
+            (SELECT COALESCE(SUM(i.total_usd_bo), 0)
              FROM items i
              JOIN proyecto p ON i.id_proyecto = p.id_proyecto
              JOIN estados e ON e.id = p.estado_id
-             WHERE e.estado = 'Ganado') AS monto_total,
+             WHERE e.estado = 'Ganado' AND YEAR(p.fecha_proyecto) = :g2) AS monto_total,
             (SELECT COUNT(*) 
              FROM proyecto p
              INNER JOIN estados e ON p.estado_id = e.id
-             WHERE e.estado = 'Ganado') AS proyectos_ganados,
-            (SELECT COUNT(*) 
-             FROM proyecto p
-             INNER JOIN estados e ON p.estado_id = e.id
-             WHERE e.estado = 'Abierto') AS proyectos_abiertos,
-            (SELECT COUNT(*) FROM sucursales) AS total_sucursales
+             WHERE e.estado = 'Ganado' AND YEAR(p.fecha_proyecto) = :g3) AS proyectos_ganados
     ");
+    $stmt->bindValue(':g1', (int)$gestion, PDO::PARAM_INT);
+    $stmt->bindValue(':g2', (int)$gestion, PDO::PARAM_INT);
+    $stmt->bindValue(':g3', (int)$gestion, PDO::PARAM_INT);
     $stmt->execute();
     return $stmt->fetch(PDO::FETCH_ASSOC);
 }
@@ -204,21 +212,24 @@ function obtenerEstadisticasUsuario($conn, $id_usuario) {
 }
 
 // Obtener proyectos recientes
-function obtenerProyectosRecientes($conn, $limite = 10) {
+function obtenerProyectosRecientes($conn, $limite = 10, $gestion = null) {
+    $gestion = $gestion ?? date('Y');
     $stmt = $conn->prepare("
         SELECT p.id_proyecto, p.titulo, p.cliente, p.fecha_proyecto,
                u.nombre as usuario, s.nombre as sucursal, e.estado,
-               COALESCE(SUM(i.total_hoy), 0) as monto_total
+               COALESCE(SUM(i.total_usd_bo), 0) as monto_total
         FROM proyecto p
         LEFT JOIN usuarios u ON p.id_usuario = u.id
         LEFT JOIN sucursales s ON p.sucursal_id = s.id
         LEFT JOIN estados e ON p.estado_id = e.id
         LEFT JOIN items i ON p.id_proyecto = i.id_proyecto
+        WHERE YEAR(p.fecha_proyecto) = :gestion
         GROUP BY p.id_proyecto, p.titulo, p.cliente, p.fecha_proyecto, u.nombre, s.nombre, e.estado
         ORDER BY p.fecha_proyecto DESC
         LIMIT :limite
     ");
     $stmt->bindValue(':limite', (int)$limite, PDO::PARAM_INT);
+    $stmt->bindValue(':gestion', (int)$gestion, PDO::PARAM_INT);
     $stmt->execute();
     return $stmt->fetchAll(PDO::FETCH_ASSOC);
 }

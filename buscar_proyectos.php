@@ -68,20 +68,23 @@ $proyectos = $stmt->fetchAll(PDO::FETCH_ASSOC);
 foreach ($proyectos as $proyecto):
 ?>
     <tr>
-        <td><?= $proyecto['numero_proyecto'] ?></td>
-        <td><?= htmlspecialchars($proyecto['titulo']) ?></td>
-        <td><?= htmlspecialchars($proyecto['cliente']) ?></td>
-        <td><?= date('d/m/Y', strtotime($proyecto['fecha_proyecto'])) ?></td>
-        <td><?= htmlspecialchars($proyecto['nombre_usuario']) ?></td>
+        <td style="font-weight: bold; color: #34a44c;">#<?= $proyecto['numero_proyecto'] ?></td>
+                <td>
+                    <div style="font-weight: 600; color: #2c3e50;"><?= htmlspecialchars($proyecto['titulo']) ?></div>
+                    <div style="font-size: 0.8rem; color: #7f8c8d;"><?= htmlspecialchars($proyecto['cliente']) ?></div>
+                </td>
+                <td><i class="far fa-calendar-alt"></i> <?= date('d/m/Y', strtotime($proyecto['fecha_proyecto'])) ?></td>
+                <td><?= htmlspecialchars($proyecto['nombre_usuario']) ?></td>
         <?php if ($_SESSION['usuario']['rol'] == ROL_GERENTE && $_SESSION['usuario']['sucursal_id'] == 1): ?>
-            <td><?= htmlspecialchars($proyecto['sucursal_nombre']) ?></td>
+                <td><span class="tag-sucursal"><?= htmlspecialchars($proyecto['sucursal_nombre']) ?></span></td>
         <?php endif; ?>
+
         <td>
             <?php if (($proyecto['id_usuario'] == $_SESSION['usuario']['id']) || 
                       ($_SESSION['usuario']['rol'] == ROL_GERENTE && $_SESSION['usuario']['sucursal_id'] == 1)): ?>
                 <form method="post" action="cambiar_estado.php">
                     <input type="hidden" name="id_proyecto" value="<?= $proyecto['id_proyecto'] ?>">
-                    <select name="estado_id" onchange="this.form.submit()">
+                    <select name="estado_id" onchange="this.form.submit()" class="estado-selector">
                         <?php foreach ($estados as $estado): ?>
                             <option value="<?= $estado['id'] ?>" <?= $estado['estado'] == $proyecto['estado'] ? 'selected' : '' ?>>
                                 <?= htmlspecialchars($estado['estado']) ?>
@@ -90,11 +93,11 @@ foreach ($proyectos as $proyecto):
                     </select>
                 </form>
             <?php else: ?>
-                <?= htmlspecialchars($proyecto['estado']) ?>
+                <span class="estado-selector"><?= htmlspecialchars($proyecto['estado']) ?></span>
             <?php endif; ?>
         </td>
-        <td>
-            <a href="ver_proyecto.php?id=<?= $proyecto['id_proyecto'] ?>" class="btn">Ver</a>
+        <td style="text-align: center;">
+            <a href="ver_proyecto.php?id=<?= $proyecto['id_proyecto'] ?>" class="btn" style="padding: 5px 15px;">Abrir</a>
         </td>
     </tr>
 <?php endforeach; ?>

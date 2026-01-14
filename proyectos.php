@@ -123,106 +123,174 @@ if ($fin_rango - $inicio_rango < $rango_paginas - 1) {
     <link rel="icon" type="image/jpg" href="assets/icono.jpg">
     <link rel="stylesheet" href="styles.css">
     <style>
-        .paginacion {
-            margin-top: 20px;
-            text-align: center;
-            display: flex;
-            justify-content: center;
-            align-items: center;
-            gap: 5px;
-            flex-wrap: wrap;
-        }
+    /* --- VARIABLES Y BASES --- */
+    :root {
+        --primary-color: #34a44c;
+        --secondary-color: #2c3e50;
+        --bg-light: #f8f9fa;
+        --shadow: 0 4px 15px rgba(0,0,0,0.08);
+    }
 
-        .paginacion a {
-            padding: 8px 12px;
-            background-color: #fff;
-            text-decoration: none;
-            color: #34a44c;
-            border: 1px solid #ddd;
-            border-radius: 4px;
-            transition: all 0.2s ease;
-            min-width: 40px;
-            text-align: center;
-        }
+    /* --- CONTENEDOR PRINCIPAL --- */
+    .container {
+        max-width: 1300px;
+        margin: 20px auto;
+        padding: 25px;
+        background: #fff;
+        border-radius: 12px;
+        box-shadow: var(--shadow);
+    }
 
-        .paginacion a:hover:not(.pagina-activa) {
-            background-color: #f0f0f0;
-            border-color: #34a44c;
-        }
+    /* --- DISEÑO DE LA BARRA DE FILTROS --- */
+    .filtros-container {
+        background: #f8f9fa;
+        padding: 20px;
+        border-radius: 12px;
+        margin-bottom: 20px;
+        display: flex;
+        flex-wrap: wrap;
+        gap: 15px;
+        align-items: center;
+        border: 1px solid #edf2f7;
+    }
 
-        .paginacion a.pagina-activa {
-            font-weight: bold;
-            background-color: #34a44c;
-            color: white;
-            border-color: #34a44c;
-            cursor: default;
-        }
+    /* Estilo para los Selects y el Buscador */
+    .filtros-container select, 
+    .filtros-container input[type="text"] {
+        padding: 10px 15px;
+        border-radius: 8px;
+        border: 1px solid #d1d5db;
+        background-color: #ffffff;
+        color: #4b5563;
+        font-size: 0.9rem;
+        outline: none;
+        transition: all 0.2s ease;
+    }
 
-        .paginacion-control {
-            font-weight: bold;
-            font-size: 16px;
-        }
+    /* Efecto Focus para resaltar donde el usuario hace clic */
+    .filtros-container select:focus, 
+    .filtros-container input[type="text"]:focus {
+        border-color: #34a44c;
+        box-shadow: 0 0 0 3px rgba(52, 164, 76, 0.15);
+    }
 
-        .paginacion-puntos {
-            padding: 8px 4px;
-            color: #666;
-        }
+    /* Buscador más ancho */
+    .filtros-container input[type="text"] {
+        flex-grow: 1;
+        min-width: 250px;
+    }
 
-        .paginacion-info {
-            margin-left: 15px;
-            padding: 8px 12px;
-            color: #666;
-            font-size: 14px;
-            background-color: #f8f9fa;
-            border-radius: 4px;
-        }
+    /* Estilo para las etiquetas (si usas labels) */
+    .filtros-container label {
+        font-size: 0.85rem;
+        font-weight: 600;
+        color: #6b7280;
+        margin-right: 5px;
+    }
 
-        .filtro-derecha {
-            display: flex;
-            align-items: center;
-            gap: 10px;
-            margin-top: 10px;
-            flex-wrap: wrap;
+    /* Ajuste para dispositivos móviles */
+    @media (max-width: 768px) {
+        .filtros-container {
+            flex-direction: column;
+            align-items: stretch;
         }
+        .filtros-container input[type="text"] {
+            min-width: unset;
+        }
+    }
 
-        .filtro-derecha select,
-        #buscador {
-            padding: 6px 10px;
-            font-size: 14px;
-            border: 1px solid #ccc;
-            border-radius: 4px;
-        }
+    /* --- TABLA MODERNA --- */
+    .proyectos-table {
+        width: 100%;
+        border-collapse: separate;
+        border-spacing: 0 10px; /* Crea el efecto de filas separadas */
+        margin-top: 10px;
+    }
 
-        #buscador {
-            width: 250px;
-            transition: all 0.3s ease;
-        }
+    .proyectos-table thead th {
+        background: transparent;
+        color: #7f8c8d;
+        text-transform: uppercase;
+        font-size: 0.75rem;
+        font-weight: 700;
+        padding: 12px 15px;
+        border: none;
+    }
 
-        #buscador:focus {
-            border-color: #34a44c;
-            outline: none;
-            box-shadow: 0 0 4px rgba(52, 164, 76, 0.5);
-        }
+    .proyectos-table tbody tr {
+        background-color: white;
+        transition: transform 0.2s;
+    }
 
-        @media (max-width: 768px) {
-            .paginacion {
-                gap: 3px;
-            }
-            
-            .paginacion a {
-                padding: 6px 10px;
-                min-width: 35px;
-                font-size: 14px;
-            }
-            
-            .paginacion-info {
-                width: 100%;
-                margin-top: 10px;
-                margin-left: 0;
-                text-align: center;
-            }
-        }
-    </style>
+    .proyectos-table tbody tr:hover {
+        transform: translateY(-2px);
+        box-shadow: 0 5px 15px rgba(0,0,0,0.05);
+    }
+
+    .proyectos-table td {
+        padding: 18px 15px;
+        border-top: 1px solid #f0f0f0;
+        border-bottom: 1px solid #f0f0f0;
+    }
+
+    .proyectos-table td:first-child { border-left: 1px solid #f0f0f0; border-radius: 10px 0 0 10px; }
+    .proyectos-table td:last-child { border-right: 1px solid #f0f0f0; border-radius: 0 10px 10px 0; }
+
+    /* --- ESTADOS (BADGES) --- */
+    .estado-selector {
+        padding: 6px 12px;
+        border-radius: 20px;
+        font-size: 0.8rem;
+        font-weight: 600;
+        border: 1px solid #eee;
+        background: #f8f9fa;
+    }
+
+    /* --- PAGINACIÓN --- */
+    .paginacion {
+        margin-top: 30px;
+        display: flex;
+        justify-content: center;
+        align-items: center;
+        gap: 8px;
+    }
+
+    .paginacion a {
+        padding: 10px 16px;
+        background-color: #fff;
+        text-decoration: none;
+        color: var(--secondary-color);
+        border: 1px solid #ddd;
+        border-radius: 8px;
+        transition: all 0.3s ease;
+    }
+
+    .paginacion a:hover:not(.pagina-activa) {
+        background-color: var(--primary-color);
+        color: white;
+        border-color: var(--primary-color);
+    }
+
+    .paginacion a.pagina-activa {
+        background-color: var(--primary-color);
+        color: white;
+        border-color: var(--primary-color);
+        font-weight: bold;
+    }
+
+    .paginacion-info {
+        margin-left: 20px;
+        font-size: 0.9rem;
+        color: #7f8c8d;
+    }
+
+    /* --- RESPONSIVE --- */
+    @media (max-width: 768px) {
+        .filtro-form { flex-direction: column; align-items: stretch; }
+        #buscador { width: 100% !important; }
+        .proyectos-table { font-size: 14px; }
+    }
+</style>
 </head>
 <body>
 
@@ -236,11 +304,11 @@ if ($fin_rango - $inicio_rango < $rango_paginas - 1) {
         </div>
     </header>
 
-    <div class="form-rowf">
+    <div class="filtros-container">
         <form method="get" action="" class="filtro-form">
             <div class="filtros-izquierda">
                 <?php if ($_SESSION['usuario']['rol'] == ROL_GERENTE && $_SESSION['usuario']['sucursal_id'] == 1): ?>
-                    <select name="sucursal" id="venta-selector" onchange="this.form.submit()">
+                    <select name="sucursal" id="selector" onchange="this.form.submit()">
                         <option value="">Todas las sucursales</option>
                         <?php foreach ($sucursales as $sucursal): ?>
                             <option value="<?= $sucursal['id'] ?>" <?= $filtro_sucursal == $sucursal['id'] ? 'selected' : '' ?>>
@@ -249,7 +317,7 @@ if ($fin_rango - $inicio_rango < $rango_paginas - 1) {
                         <?php endforeach; ?>
                     </select>
 
-                    <select name="usuario" id="venta-selector" onchange="this.form.submit()">
+                    <select name="usuario" id="selector" onchange="this.form.submit()">
                         <option value="">Todos los usuarios</option>
                         <?php foreach ($usuarios as $usuario): ?>
                             <option value="<?= $usuario['id'] ?>" <?= $filtro_usuario == $usuario['id'] ? 'selected' : '' ?>>
@@ -258,7 +326,7 @@ if ($fin_rango - $inicio_rango < $rango_paginas - 1) {
                         <?php endforeach; ?>
                     </select>
                 <?php elseif ($_SESSION['usuario']['rol'] == ROL_GERENTE): ?>
-                    <select name="usuario" id="venta-selector" onchange="this.form.submit()">
+                    <select name="usuario" id="selector" onchange="this.form.submit()">
                         <option value="">Todos los usuarios</option>
                         <?php
                             $stmt = $conn->prepare("SELECT u.id, u.nombre FROM usuarios u 
@@ -279,7 +347,7 @@ if ($fin_rango - $inicio_rango < $rango_paginas - 1) {
             </div>
 
             <div class="filtro-derecha">
-                <select name="estado" id="venta-selector" onchange="this.form.submit()">
+                <select name="estado" id="selector" onchange="this.form.submit()">
                     <option value="">Todos los estados</option>
                     <?php foreach ($estados as $estado): ?>
                         <option value="<?= $estado['id'] ?>" <?= $filtro_estado == $estado['id'] ? 'selected' : '' ?>>
@@ -292,63 +360,61 @@ if ($fin_rango - $inicio_rango < $rango_paginas - 1) {
     </div>
 
     <table class="proyectos-table">
-        <thead>
+    <thead>
+        <tr>
+            <th>Nº</th>
+            <th>Proyecto / Cliente</th>
+            <th>Fecha</th>
+            <th>Responsable</th>
+            <?php if ($_SESSION['usuario']['rol'] == ROL_GERENTE && $_SESSION['usuario']['sucursal_id'] == 1): ?>
+                <th>Sucursal</th>
+            <?php endif; ?>
+            <th>Estado</th>
+            <th style="text-align: center;">Acciones</th>
+        </tr>
+    </thead>
+    <tbody id="tabla-proyectos">
+        <?php foreach ($proyectos as $proyecto): ?>
             <tr>
-                <th>ID</th>
-                <th>Título</th>
-                <th>Cliente</th>
-                <th>Fecha</th>
-                <th>Usuario</th>
+                <td style="font-weight: bold; color: #34a44c;">#<?= $proyecto['numero_proyecto'] ?></td>
+                <td>
+                    <div style="font-weight: 600; color: #2c3e50;"><?= htmlspecialchars($proyecto['titulo']) ?></div>
+                    <div style="font-size: 0.8rem; color: #7f8c8d;"><?= htmlspecialchars($proyecto['cliente']) ?></div>
+                </td>
+                <td><i class="far fa-calendar-alt"></i> <?= date('d/m/Y', strtotime($proyecto['fecha_proyecto'])) ?></td>
+                <td><?= htmlspecialchars($proyecto['nombre_usuario']) ?></td>
+                
                 <?php if ($_SESSION['usuario']['rol'] == ROL_GERENTE && $_SESSION['usuario']['sucursal_id'] == 1): ?>
-                    <th>Sucursal</th>
+                    <td><span class="tag-sucursal"><?= htmlspecialchars($proyecto['sucursal_nombre']) ?></span></td>
                 <?php endif; ?>
-                <th>Estado</th>
-                <th>Acciones</th>
-            </tr>
-        </thead>
-        <tbody id="tabla-proyectos">
-            <?php foreach ($proyectos as $proyecto): ?>
-                <tr>
-                    <td><?= $proyecto['numero_proyecto'] ?></td>
-                    <td><?= htmlspecialchars($proyecto['titulo']) ?></td>
-                    <td><?= htmlspecialchars($proyecto['cliente']) ?></td>
-                    <td><?= date('d/m/Y', strtotime($proyecto['fecha_proyecto'])) ?></td>
-                    <td><?= htmlspecialchars($proyecto['nombre_usuario']) ?></td>
-                    <?php if ($_SESSION['usuario']['rol'] == ROL_GERENTE && $_SESSION['usuario']['sucursal_id'] == 1): ?>
-                        <td><?= htmlspecialchars($proyecto['sucursal_nombre']) ?></td>
+
+                <td>
+                    <?php if (($proyecto['id_usuario'] == $_SESSION['usuario']['id']) || 
+                              ($_SESSION['usuario']['rol'] == ROL_GERENTE && $_SESSION['usuario']['sucursal_id'] == 1)): ?>
+                        <form method="post" action="cambiar_estado.php">
+                            <input type="hidden" name="id_proyecto" value="<?= $proyecto['id_proyecto'] ?>">
+                            <select name="estado_id" onchange="this.form.submit()" class="estado-selector">
+                                <?php foreach ($estados as $estado): ?>
+                                    <option value="<?= $estado['id'] ?>" <?= $estado['estado'] == $proyecto['estado'] ? 'selected' : '' ?>>
+                                        <?= htmlspecialchars($estado['estado']) ?>
+                                    </option>
+                                <?php endforeach; ?>
+                            </select>
+                        </form>
+                    <?php else: ?>
+                        <span class="estado-selector"><?= htmlspecialchars($proyecto['estado']) ?></span>
                     <?php endif; ?>
-                    <td>
-                        <?php if (($proyecto['id_usuario'] == $_SESSION['usuario']['id']) || 
-                                  ($_SESSION['usuario']['rol'] == ROL_GERENTE && $_SESSION['usuario']['sucursal_id'] == 1)): ?>
-                            <form method="post" action="cambiar_estado.php">
-                                <input type="hidden" name="id_proyecto" value="<?= $proyecto['id_proyecto'] ?>">
-                                <select name="estado_id" onchange="this.form.submit()">
-                                    <?php foreach ($estados as $estado): ?>
-                                        <option value="<?= $estado['id'] ?>" <?= $estado['estado'] == $proyecto['estado'] ? 'selected' : '' ?>>
-                                            <?= htmlspecialchars($estado['estado']) ?>
-                                        </option>
-                                    <?php endforeach; ?>
-                                </select>
-                            </form>
-                        <?php else: ?>
-                            <?= htmlspecialchars($proyecto['estado']) ?>
-                        <?php endif; ?>
-                    </td>
-                    <td>
-                        <a href="ver_proyecto.php?id=<?= $proyecto['id_proyecto'] ?>&<?= 
-                            http_build_query(array_filter([
-                                'sucursal' => $filtro_sucursal,
-                                'usuario' => $filtro_usuario,
-                                'estado' => $filtro_estado,
-                                'buscar' => $busqueda,
-                                'pagina' => $pagina_actual
-                            ])) 
-                        ?>" class="btn">Ver</a>
-                    </td>
-                </tr>
-            <?php endforeach; ?>
-        </tbody>
-    </table>
+                </td>
+                <td style="text-align: center;">
+                    <a href="ver_proyecto.php?id=<?= $proyecto['id_proyecto'] ?>&<?= http_build_query(array_filter(['sucursal' => $filtro_sucursal, 'usuario' => $filtro_usuario, 'estado' => $filtro_estado, 'buscar' => $busqueda, 'pagina' => $pagina_actual])) ?>" 
+                       class="btn" style="padding: 5px 15px;">
+                       Abrir
+                    </a>
+                </td>
+            </tr>
+        <?php endforeach; ?>
+    </tbody>
+</table>
 
     <?php if ($total_paginas > 1): ?>
     <div id="contenedor-paginacion" class="paginacion">

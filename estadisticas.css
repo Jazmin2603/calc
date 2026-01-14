@@ -556,3 +556,83 @@ tbody tr {
         vertical-align: top;
     }
 }
+
+/* Contenedor del filtro */
+.filter-container {
+    background: #ffffff;
+    padding: 10px 15px;
+    border-radius: 8px;
+    box-shadow: 0 2px 4px rgba(0,0,0,0.05);
+    display: flex;
+    align-items: center;
+    gap: 10px;
+}
+
+.filter-container label {
+    font-size: 0.9rem;
+    font-weight: 600;
+    color: #444;
+}
+
+/* Estilo para el SELECT */
+.select-gestion {
+    padding: 8px 12px;
+    border: 1px solid #ddd;
+    border-radius: 6px;
+    background-color: #f9f9f9;
+    font-size: 0.95rem;
+    color: #333;
+    cursor: pointer;
+    transition: all 0.3s ease;
+    outline: none;
+    -webkit-appearance: none; /* Quita el estilo por defecto en algunos navegadores */
+    appearance: none;
+    background-image: url("data:image/svg+xml;charset=UTF-8,%3csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='currentColor' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3e%3cpolyline points='6 9 12 15 18 9'%3e%3c/polyline%3e%3c/svg%3e");
+    background-repeat: no-repeat;
+    background-position: right 10px center;
+    background-size: 1em;
+    padding-right: 40px;
+}
+
+.select-gestion:hover {
+    border-color: #3498db;
+}
+
+.select-gestion:focus {
+    border-color: #3498db;
+    box-shadow: 0 0 0 3px rgba(52, 152, 219, 0.2);
+    background-color: #fff;
+}
+
+/* Alineación en el Header */
+.header-right {
+    display: flex;
+    align-items: center;
+    gap: 20px;
+}
+
+/* Agrega esto a tu archivo estadisticas.css */
+.no-data-message {
+    text-align: center;
+    padding: 40px 20px;
+    background-color: #f8f9fa;
+    border-radius: 8px;
+    border: 2px dashed #dee2e6;
+    margin: 20px 0;
+}
+
+.no-data-message p {
+    margin: 10px 0;
+    color: #6c757d;
+}
+
+.no-data-message p:first-child {
+    font-size: 1.2em;
+    font-weight: 600;
+    color: #495057;
+}
+
+.small-text {
+    font-size: 0.9em;
+    opacity: 0.8;
+}

@@ -13,22 +13,23 @@ function autenticarUsuario($username, $password) {
     $stmt->execute([$username]);
     $usuario = $stmt->fetch(PDO::FETCH_ASSOC);
     
-    // Verificar si el usuario existe y la contraseña es correcta
     if ($usuario && password_verify($password, $usuario['password'])) {
-        // Verificar si es primer ingreso
-        if ($usuario['primer_ingreso']) {
-            $_SESSION['usuario_temp'] = $usuario; // Guardar temporalmente
-            header("Location: cambiar_contrasena.php?obligatorio=1");
-            exit();
+
+        if($usuario['activo'] != 1){
+            return 'inactivo';
         }
         
-        // Si no es primer ingreso, establecer sesión normal
         unset($usuario['password']);
         $_SESSION['usuario'] = $usuario;
-        return true;
+        
+        if ($usuario['primer_ingreso']) {
+            return 'primer_ingreso';
+        }
+        
+        return 'exito';
     }
     
-    return false;
+    return 'error';
 }
 
 function verificarPrimerIngreso() {

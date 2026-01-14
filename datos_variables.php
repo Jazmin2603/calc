@@ -52,6 +52,84 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             <h1>Configuración de Datos Variables</h1>
             <link rel="icon" type="image/jpg" href="assets/icono.jpg">
             <a href="dashboard.php" class="btn-back">Volver al Dashboard</a>
+            <style>
+                /* Contenedor de las tarjetas */
+                .datos-form {
+                    display: grid;
+                    grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+                    gap: 20px;
+                    margin-top: 20px;
+                }
+
+                /* Estilo de cada sección (Card) */
+                .form-section {
+                    background: #ffffff;
+                    padding: 20px;
+                    border-radius: 12px;
+                    box-shadow: 0 4px 15px rgba(0,0,0,0.05);
+                    border-top: 4px solid #2c3e50; /* Color distintivo arriba */
+                }
+
+                .form-section h2 {
+                    font-size: 1.2rem;
+                    color: #2c3e50;
+                    margin-bottom: 20px;
+                    border-bottom: 1px solid #eee;
+                    padding-bottom: 10px;
+                    display: flex;
+                    align-items: center;
+                }
+
+                /* Ajuste de los inputs para que ocupen el ancho completo */
+                .form-group {
+                    margin-bottom: 15px;
+                    display: flex;
+                    flex-direction: column;
+                }
+
+                .form-group label {
+                    font-weight: 600;
+                    font-size: 0.9rem;
+                    color: #555;
+                    margin-bottom: 5px;
+                }
+
+                .form-group input {
+                    padding: 10px;
+                    border: 1px solid #ddd;
+                    border-radius: 6px;
+                    font-size: 1rem;
+                    transition: border-color 0.3s;
+                }
+
+                .form-group input:focus {
+                    border-color: #3498db;
+                    outline: none;
+                }
+
+                /* El botón de guardar centrado y grande abajo */
+                .btn-submit-container {
+                    grid-column: 1 / -1; /* Ocupa todo el ancho en el grid */
+                    text-align: center;
+                    margin-top: 20px;
+                }
+
+                .btn-save {
+                    padding: 12px 40px;
+                    background-color: #27ae60;
+                    color: white;
+                    border: none;
+                    border-radius: 8px;
+                    font-size: 1.1rem;
+                    font-weight: bold;
+                    cursor: pointer;
+                    transition: background 0.3s;
+                }
+
+                .btn-save:hover {
+                    background-color: #219150;
+                }
+            </style>
         </header>
         
         <?php if (isset($_GET['success'])): ?>
@@ -65,83 +143,59 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         <form method="post" class="datos-form">
             <div class="form-section">
                 <h2>Impuestos</h2>
-                <div class="form-row">
-                    <div class="form-group">
-                        <label for="iva">IVA (%):</label>
-                        <input type="number" step="0.01" id="iva" name="iva" 
-                            value="<?= $valores ? $valores['iva'] : 13.0 ?>" required>
-                    </div>
-                    
-                    <div class="form-group">
-                        <label for="it">IT (%):</label>
-                        <input type="number" step="0.01" id="it" name="it" 
-                            value="<?= $valores ? $valores['it'] : 1.0 ?>" required>
-                    </div>
-                    <div class="form-group">
-                        <label for="giro_exterior">Giro (%):</label>
-                        <input type="number" step="0.01" id="giro_exterior" name="giro_exterior" 
-                            value="<?= $valores ? $valores['giro_exterior'] : 1.0 ?>" required>
-                    </div>
-
-                    <div class="form-group">
-                        <label for="itf">ITF (%):</label>
-                        <input type="number" step="0.01" id="itf" name="itf" 
-                            value="<?= $valores ? $valores['itf'] : 1.0 ?>" required>
-                    </div>
+                <div class="form-group">
+                    <label for="iva">IVA (%):</label>
+                    <input type="number" step="0.01" id="iva" name="iva" value="<?= $valores['iva'] ?? 13.0 ?>" required>
                 </div>
-                
-                
-                
+                <div class="form-group">
+                    <label for="it">IT (%):</label>
+                    <input type="number" step="0.01" id="it" name="it" value="<?= $valores['it'] ?? 3.0 ?>" required>
+                </div>
+                <div class="form-group">
+                    <label for="giro_exterior">Giro (%):</label>
+                    <input type="number" step="0.01" id="giro_exterior" name="giro_exterior" value="<?= $valores['giro_exterior'] ?? 5.0 ?>" required>
+                </div>
+                <div class="form-group">
+                    <label for="itf">ITF (%):</label>
+                    <input type="number" step="0.01" id="itf" name="itf" value="<?= $valores['itf'] ?? 0.3 ?>" required>
+                </div>
             </div>
-            
+
             <div class="form-section">
                 <h2>Tipos de Cambio</h2>
-
-                <div class="form-row">
-                    <div class="form-group">
-                        <label for="tc_oficial">Oficial:</label>
-                        <input type="number" step="0.01" id="tc_oficial" name="tc_oficial" 
-                            value="<?= $valores ? $valores['tc_oficial'] : 1.00 ?>" required>
-                    </div>
-                    
-                    <div class="form-group">
-                        <label for="tc_paralelo_hoy">Paralelo Hoy:</label>
-                        <input type="number" step="0.01" id="tc_paralelo_hoy" name="tc_paralelo_hoy" 
-                            value="<?= $valores ? $valores['tc_paralelo_hoy'] : 1.00 ?>" required>
-                    </div>
-                    
-                    <div class="form-group">
-                        <label for="tc_estimado30">Estimado 30:</label>
-                        <input type="number" step="0.01" id="tc_estimado30" name="tc_estimado30" 
-                            value="<?= $valores ? $valores['tc_estimado30'] : 1.00 ?>" required>
-                    </div>
-
-                    <div class="form-group">
-                        <label for="tc_estimado60">Estimado 60:</label>
-                        <input type="number" step="0.01" id="tc_estimado60" name="tc_estimado60" 
-                            value="<?= $valores ? $valores['tc_estimado60'] : 1.00 ?>" required>
-                    </div>
+                <div class="form-group">
+                    <label for="tc_oficial">Oficial:</label>
+                    <input type="number" step="0.01" id="tc_oficial" name="tc_oficial" value="<?= $valores['tc_oficial'] ?? 6.96 ?>" required>
+                </div>
+                <div class="form-group">
+                    <label for="tc_paralelo_hoy">Paralelo Hoy:</label>
+                    <input type="number" step="0.01" id="tc_paralelo_hoy" name="tc_paralelo_hoy" value="<?= $valores['tc_paralelo_hoy'] ?? 14.0 ?>" required>
+                </div>
+                <div class="form-group">
+                    <label for="tc_estimado30">Estimado 30 días:</label>
+                    <input type="number" step="0.01" id="tc_estimado30" name="tc_estimado30" value="<?= $valores['tc_estimado30'] ?? 15.0 ?>" required>
+                </div>
+                <div class="form-group">
+                    <label for="tc_estimado60">Estimado 60 días:</label>
+                    <input type="number" step="0.01" id="tc_estimado60" name="tc_estimado60" value="<?= $valores['tc_estimado60'] ?? 16.0 ?>" required>
                 </div>
             </div>
-            
+
             <div class="form-section">
                 <h2>Otros Parámetros</h2>
-                <div class="form-row">
-                    <div class="form-group">
-                        <label for="com_aduana">Comisión Aduana (%):</label>
-                        <input type="number" step="0.01" id="com_aduana" name="com_aduana" 
-                            value="<?= $valores ? $valores['com_aduana'] : 0.50 ?>" required>
-                    </div>
-
-                    <div class="form-group">
-                        <label for="pago_anticipado_DMC">Pago Anticipado DMC (%):</label>
-                        <input type="number" step="0.01" id="pago_anticipado_DMC" name="pago_anticipado_DMC" 
-                            value="<?= $valores ? $valores['pago_anticipado_DMC'] : 0.50 ?>" required>
-                    </div>
+                <div class="form-group">
+                    <label for="com_aduana">Comisión Aduana (%):</label>
+                    <input type="number" step="0.01" id="com_aduana" name="com_aduana" value="<?= $valores['com_aduana'] ?? 1.10 ?>" required>
+                </div>
+                <div class="form-group">
+                    <label for="pago_anticipado_DMC">Pago Anticipado DMC (%):</label>
+                    <input type="number" step="0.01" id="pago_anticipado_DMC" name="pago_anticipado_DMC" value="<?= $valores['pago_anticipado_DMC'] ?? 66.32 ?>" required>
                 </div>
             </div>
-            
-            <button type="submit" class="btn">Guardar Cambios</button>
+
+            <div class="btn-submit-container">
+                <button type="submit" class="btn-save">Guardar Todos los Cambios</button>
+            </div>
         </form>
     </div>
 </body>

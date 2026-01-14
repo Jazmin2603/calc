@@ -51,6 +51,20 @@ if (isset($_GET['eliminar'])) {
     }
 }
 
+// Lógica para Activar/Desactivar (Toggle)
+if (isset($_GET['toggle_status'])) {
+    $id = intval($_GET['toggle_status']);
+    try {
+        // Obtenemos el estado actual para invertirlo
+        $stmt = $conn->prepare("UPDATE usuarios SET activo = NOT activo WHERE id = ?");
+        $stmt->execute([$id]);
+        header("Location: gestion_vendedores.php?success=Estado de usuario actualizado");
+        exit();
+    } catch(PDOException $e) {
+        $error = "Error al cambiar estado: " . $e->getMessage();
+    }
+}
+
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['resetear'])) {
     $id = intval($_POST['usuario_id']);
     $nueva_password = trim($_POST['nueva_password']);
@@ -79,6 +93,121 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['resetear'])) {
     <title>Gestión de Usuarios</title>
     <link rel="icon" type="image/jpg" href="assets/icono.jpg">
     <link rel="stylesheet" href="styles.css">
+    <style>
+        /* Estilo general del contenedor */
+        .container-usuario {
+            max-width: 1100px;
+            margin: 0 auto;
+            padding: 20px;
+        }
+
+        /* Tarjeta para el formulario */
+        .form-section {
+            background: #fff;
+            padding: 25px;
+            border-radius: 12px;
+            box-shadow: 0 4px 15px rgba(0,0,0,0.05);
+            margin-bottom: 40px;
+            border-top: 4px solid #27ae60;
+        }
+
+        .form-section h2 {
+            margin-top: 0;
+            color: #2c3e50;
+            font-size: 1.4rem;
+            border-bottom: 1px solid #eee;
+            padding-bottom: 10px;
+        }
+
+        /* Grid para los campos del formulario */
+        .form-row {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+            gap: 20px;
+            margin-bottom: 15px;
+        }
+
+        .form-grouplo label {
+            display: block;
+            font-weight: 600;
+            margin-bottom: 5px;
+            color: #555;
+        }
+
+        .form-grouplo input, .form-grouplo select {
+            width: 100%;
+            padding: 10px;
+            border: 1px solid #ddd;
+            border-radius: 6px;
+            box-sizing: border-box; /* Evita que el input se salga del div */
+        }
+
+        /* Contenedor de la lista como tarjeta */
+        .vendedores-list {
+            background: #fff;
+            border-radius: 12px;
+            box-shadow: 0 4px 15px rgba(0,0,0,0.05);
+            overflow: hidden;
+            margin-top: 20px;
+        }
+
+        .vendedores-list h2 {
+            background: #f8f9fa;
+            margin: 0;
+            padding: 20px;
+            font-size: 1.2rem;
+            color: #2c3e50;
+            border-bottom: 1px solid #eee;
+        }
+
+        /* Estilo de la Tabla */
+        .vendedores-list {
+            background: #fff;
+            border-radius: 12px;
+            box-shadow: 0 4px 15px rgba(0,0,0,0.05);
+            margin-top: 20px;
+            padding: 20px; 
+        }
+
+        .vendedores-list h2 {
+            margin: 0 0 20px 0; 
+            font-size: 1.3rem;
+            color: #2c3e50;
+            border-bottom: none;
+        }
+
+        .btn-action {
+            padding: 8px 14px; 
+            border-radius: 6px;
+            font-size: 0.85rem;
+            font-weight: 600;
+            text-decoration: none;
+            border: none;
+            color: white; /* Texto siempre blanco para fondos sólidos */
+            cursor: pointer;
+            transition: all 0.3s ease;
+            display: inline-block;
+            text-align: center;
+        }
+
+        /* Colores sólidos para los estados */
+        .btn-status-off { 
+            background-color: #f39c12; /* Naranja sólido */
+        }
+
+        .btn-status-on { 
+            background-color: #2ecc71; /* Verde sólido */
+        }
+
+        /* Mantenemos el resto igual */
+        .btn-reset { background-color: #3498db; }
+        .btn-delete { background-color: #e74c3c; }
+
+        .btn-action:hover {
+            opacity: 0.9;
+            transform: translateY(-1px);
+        }
+    </style>
 </head>
 <body>
     <div class="container-usuario">
@@ -102,40 +231,36 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['resetear'])) {
                 <div class="form-row">
                     <div class="form-grouplo">
                         <label for="username">Usuario:</label>
-                        <input type="text" id="username" name="username" required>
+                        <input type="text" id="username" name="username" placeholder="Ej: nombre.apellido" required>
                     </div>
                     <div class="form-grouplo">
                         <label for="password">Contraseña:</label>
                         <input type="password" id="password" name="password" required>
                     </div>
-                </div>
-                <div class="form-row">
-                    <div class="form-grouplo">
-                        <label for="nombre">Nombre Completo:</label>
-                        <input type="text" id="nombre" name="nombre" required>
-                    </div>
-                    <div class="form-grouplo">
-                        <label for="email">Email:</label>
-                        <input type="email" id="email" name="email" required>
-                    </div>
-                </div>
-                <div class="form-row">
-                    
                     <div class="form-grouplo">
                         <label for="rol">Rol:</label>
-                        <select id="venta-selector" name="rol" required>
-                            <option value="">Seleccione un rol</option>
+                        <select name="rol" required>
+                            <option value="">Seleccione...</option>
                             <option value="1">Vendedor</option>
                             <option value="2">Gerente</option>
                             <option value="3">Financiero</option>
                         </select>
                     </div>
-                    
-
+                </div>
+                
+                <div class="form-row">
+                    <div class="form-grouplo">
+                        <label for="nombre">Nombre Completo:</label>
+                        <input type="text" id="nombre" name="nombre" placeholder="Nombre y Apellido" required>
+                    </div>
+                    <div class="form-grouplo">
+                        <label for="email">Email:</label>
+                        <input type="email" id="email" name="email" placeholder="correo@empresa.com" required>
+                    </div>
                     <div class="form-grouplo">
                         <label for="sucursal">Sucursal:</label>
-                        <select id="venta-selector" name="sucursal" required>
-                            <option value="">Seleccione una sucursal</option>
+                        <select name="sucursal" required>
+                            <option value="">Seleccione...</option>
                             <?php 
                             $stmt = $conn->query("SELECT * FROM sucursales");
                             while ($sucursal = $stmt->fetch(PDO::FETCH_ASSOC)): 
@@ -148,16 +273,19 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['resetear'])) {
                     </div>
                 </div>
 
-                <button type="submit" name="agregar" class="btn">Agregar Usuario</button>
+                <div style="text-align: right; margin-top: 10px;">
+                    <button type="submit" name="agregar" class="btn" style="background:#27ae60; padding: 12px 25px; font-weight: 500; font-size:0.85rem;">
+                        Crear Usuario
+                    </button>
+                </div>
             </form>
         </div>
         
         <div class="vendedores-list">
             <h2>Usuarios Registrados</h2>
-            <table>
+            <table class="table-custom">
                 <thead>
                     <tr>
-                        <th>ID</th>
                         <th>Usuario</th>
                         <th>Nombre</th>
                         <th>Email</th>
@@ -167,18 +295,25 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['resetear'])) {
                 <tbody>
                     <?php foreach($usuarios as $usuario): ?>
                     <tr>
-                        <td><?php echo htmlspecialchars($usuario['id']); ?></td>
-                        <td><?php echo htmlspecialchars($usuario['username']); ?></td>
+                        <td class="col-usuario"><?php echo htmlspecialchars($usuario['username']); ?></td>
                         <td><?php echo htmlspecialchars($usuario['nombre']); ?></td>
-                        <td><?php echo htmlspecialchars($usuario['email']); ?></td>
-                        <td>
-                            <a href="gestion_vendedores.php?eliminar=<?php echo $usuario['id']; ?>" 
-                               class="btn-delete" 
-                               onclick="return confirm('¿Estás seguro de eliminar este usuario?')">
-                                Eliminar
+                        <td class="col-email"><?php echo htmlspecialchars($usuario['email']); ?></td>
+                        
+                        <td class="actions-cell">
+                            <a href="gestion_vendedores.php?toggle_status=<?php echo $usuario['id']; ?>" 
+                            class="btn-action <?php echo $usuario['activo'] ? 'btn-status-off' : 'btn-status-on'; ?>">
+                                <?php echo $usuario['activo'] ? 'Desactivar' : 'Activar'; ?>
                             </a>
 
-                            <a class="btn-reset" onclick="abrirModal(<?php echo $usuario['id']; ?>)">Resetear</a>
+                            <button class="btn-action btn-reset" onclick="abrirModal(<?php echo $usuario['id']; ?>)">
+                                Resetear
+                            </button>
+
+                            <a href="gestion_vendedores.php?eliminar=<?php echo $usuario['id']; ?>" 
+                            class="btn-action btn-delete" 
+                            onclick="return confirm('¿Eliminar permanentemente?')">
+                                Eliminar
+                            </a>
                         </td>
                     </tr>
                     <?php endforeach; ?>

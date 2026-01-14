@@ -80,9 +80,8 @@ $params = array_filter([
             <h2>Presupuesto - <?= $proyecto['numero_proyecto'] ?></h2>
             <button type="submit" class="btn-back">Guardar Cambios</button>                      
         </div>
-
-        
-            <div class="maestro-content">
+            
+        <div class="maestro-content">
                 <div class="maestro-row">
                     <div class="maestro-col">
                         <label>Fecha Inicio:</label>
@@ -136,9 +135,7 @@ $params = array_filter([
                         <input type="number" step="0.01" name="pago_anticipado_DMC" value="<?= $proyecto['pago_anticipado_DMC'] ?>">  
                     </div>
                 </div>
-            </div>
-
-            
+            </div>            
         </form>
        </div>
     </div>
@@ -163,7 +160,6 @@ $params = array_filter([
 
         </div>
             
-
         <div id="items-grid"></div>
     </div>
 
@@ -352,11 +348,10 @@ $params = array_filter([
             headers: {'Content-Type': 'application/json'},
             body: JSON.stringify({id_proyecto: id_proyecto, vista: vista})
         });
+    
     });
 
-
-
-
+    
     // Botón para agregar fila
     document.getElementById("add-row").addEventListener("click", function() {
         table.addRow({}, true);
@@ -433,13 +428,12 @@ $params = array_filter([
         
     ?>
 
-    
     <button id="open-editor" class="btn">Calculos Auxiliares</button>
     <div id="editor-container" style="display:none;">
         <div id="editor" style="width: 100%; height: 800px; min-height: 800px;"></div>
     </div>
 
-
+    
     <script type="text/javascript" src="https://only.fils.bo/web-apps/apps/api/documents/api.js"></script>
 
 
@@ -475,9 +469,7 @@ $params = array_filter([
         }
     });
 
-    </script>
-
-    
-
+  
+  </script>
 </body>
 </html>

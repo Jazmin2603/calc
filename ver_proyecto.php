@@ -1,11 +1,16 @@
 <?php
+
+use function PHPSTORM_META\type;
+
 include 'includes/config.php';
 include 'includes/auth.php';
 
 $id_proyecto = filter_input(INPUT_GET, 'id', FILTER_VALIDATE_INT);
 
-$query = "SELECT p.*, u.nombre as nombre_usuario FROM proyecto p 
+$query = "SELECT p.*, u.nombre as nombre_usuario, e.estado as nombre_estado 
+          FROM proyecto p 
           JOIN usuarios u ON p.id_usuario = u.id 
+          LEFT JOIN estados e ON p.estado_id = e.id
           WHERE p.id_proyecto = ?";
 $stmt = $conn->prepare($query);
 $stmt->execute([$id_proyecto]);
@@ -26,8 +31,7 @@ if (esGerente()
 
 $numero_proyecto = $proyecto['numero_proyecto'];
 
-$queryAnio = "SELECT anio FROM `contadores` WHERE numero_fin < ? AND documento = 'presupuestos'";
-$stmt = $conn->prepare($queryAnio);
+$stmt = $conn->prepare("SELECT anio FROM contadores WHERE ? BETWEEN numero_inicio AND numero_fin AND documento = 'presupuestos'");
 $stmt->execute([$numero_proyecto]);
 $anio = $stmt->fetch(PDO::FETCH_ASSOC);
 
@@ -97,9 +101,6 @@ $params = array_filter([
                         <label>Fecha Inicio:</label>
                         <input type="date" name="fecha_proyecto" value="<?= $proyecto['fecha_proyecto'] ?>">
 
-                        <label>Título:</label>
-                        <input type="text" name="titulo" value="<?= htmlspecialchars($proyecto['titulo']) ?>">
-
                         <label>Cliente:</label>
                         <input type="text" name="cliente" value="<?= htmlspecialchars($proyecto['cliente']) ?>">
 
@@ -128,7 +129,7 @@ $params = array_filter([
                     </div>
 
                     <div class="maestro-col">
-                        <?php if($_SESSION['usuario']['rol_id'] == 2):?>
+                        <?php if(esGerente() || esSuperusuario()):?>
                             <label>IVA:</label>
                             <input type="number" step="0.01" name="iva" value="<?= $proyecto['iva'] ?>">
 
@@ -143,6 +144,14 @@ $params = array_filter([
                         <?php endif; ?>
                         <label>Pago anticipado a DMC:</label>
                         <input type="number" step="0.01" name="pago_anticipado_DMC" value="<?= $proyecto['pago_anticipado_DMC'] ?>">  
+                        <?php if (strtolower($proyecto['nombre_estado']) == 'ganado'): ?>
+                            <div style="margin-top: 15px; padding: 10px; border-radius: 8px; border: 1px solid #c8e6c9;">
+                                <label style="color: #2e7d32; font-weight: bold;">Monto Adjudicado:</label>
+                                <input type="number" step="0.01" name="monto_adjudicado" 
+                                    value="<?= $proyecto['monto_adjudicado'] ?>" 
+                                    style="font-weight: bold; color: #1b5e20;">
+                            </div>
+                        <?php endif; ?>
                     </div>
                 </div>
             </div>            
@@ -403,31 +412,30 @@ $params = array_filter([
 
     </script>
     <?php
-        $archivoExcel = "/mnt/files/adjuntos_presupuestos/$anio/hoja_{$proyecto['numero_proyecto']}.xlsx";
+        $archivoExcel = "/mnt/files/adjuntos_presupuestos/{$anio['anio']}/hoja_{$numero_proyecto}.xlsx";
+
+
         if (!file_exists($archivoExcel)) {
-            copy("/mnt/files/adjuntos_presupuestos/hoja.xlsx", $archivoExcel);
+            copy("/mnt/files/adjuntos_presupuestos/hoja_.xlsx", $archivoExcel);
         }
-        $keyDocumento = md5($proyecto['numero_proyecto'] . time());
 
-    ?>
+        $keyDocumento = md5($numero_proyecto . time());
 
-
-    <?php
         require 'vendor/autoload.php';
-
         use Firebase\JWT\JWT;
-        $documentoUrl = "https://calc.fils.bo/documentos/adjuntos_presupuestos/{$anio}/hoja_{$proyecto['numero_proyecto']}.xlsx";
+
+        $documentoUrl = "https://calc.fils.bo/documentos/adjuntos_presupuestos/{$anio['anio']}/hoja_{$numero_proyecto}.xlsx";
 
         $payload = [
             "document" => [
                 "fileType" => "xlsx",
                 "key" => $keyDocumento,
-                "title" => "hoja_{$proyecto['numero_proyecto']}.xlsx",
+                "title" => "hoja_{$numero_proyecto}.xlsx",
                 "url" => $documentoUrl
             ],
             "documentType" => "cell",
             "editorConfig" => [
-                "callbackUrl" => "https://calc.fils.bo/excel.php?numero_proyecto={$proyecto['numero_proyecto']}",
+                "callbackUrl" => "https://calc.fils.bo/excel.php?numero_proyecto={$numero_proyecto}",
                 "user" => [
                     "id" => $_SESSION['usuario']['id'],
                     "name" => $_SESSION['usuario']['nombre']
@@ -435,9 +443,9 @@ $params = array_filter([
             ]
         ];
 
-        //$token = JWT::encode($payload, 'IyawrmF4wLur9tJhehaieI4Vi6ALTsTO', 'HS256');
-        
+        $token = JWT::encode($payload, 'IyawrmF4wLur9tJhehaieI4Vi6ALTsTO', 'HS256');
     ?>
+
 
     <button id="open-editor" class="btn">Calculos Auxiliares</button>
     <div id="editor-container" style="display:none;">
@@ -463,12 +471,12 @@ $params = array_filter([
                 document: {
                     fileType: "xlsx",
                     key: "<?= $keyDocumento ?>",
-                    title: "hoja_<?= $proyecto['numero_proyecto'] ?>.xlsx",
+                    title: "hoja_<?= $numero_proyecto ?>.xlsx",
                     url: "<?= $documentoUrl ?>"
                 },
                 documentType: "cell",
                 editorConfig: {
-                    callbackUrl: "https://calc.fils.bo/excel.php?numero_proyecto=<?= $proyecto['numero_proyecto']?>",
+                    callbackUrl: "https://calc.fils.bo/excel.php?numero_proyecto=<?= $numero_proyecto?>",
                     user: {
                         id: "<?= $_SESSION['usuario']['id'] ?>",
                         name: "<?= $_SESSION['usuario']['nombre'] ?>"

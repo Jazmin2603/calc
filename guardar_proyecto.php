@@ -6,34 +6,34 @@ include 'includes/funciones.php';
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $id_proyecto = $_POST['id_proyecto'];
     
+    $stmt_select = $conn->prepare("SELECT * FROM proyecto WHERE id_proyecto = ?");
+    $stmt_select->execute([$id_proyecto]);
+    $datos_actuales = $stmt_select->fetch(PDO::FETCH_ASSOC);
 
     if(empty($_POST['iva'])){
-        $stmt = $conn->prepare("SELECT * FROM proyecto WHERE id_proyecto = ?");
-        $stmt->execute([$id_proyecto]);
-        $datos_variables = $stmt->fetch(PDO::FETCH_ASSOC);
-        $iva =  $datos_variables['iva'];
-        $it = $datos_variables['it'];
-        $itf = $datos_variables['itf'];
-        $giro = $datos_variables['giro_exterior'];
-        $comAduana = $datos_variables['com_aduana'];
-        $oficial = $datos_variables['tc_oficial'];
+        $iva = $datos_actuales['iva'];
+        $it = $datos_actuales['it'];
+        $itf = $datos_actuales['itf'];
+        $giro = $datos_actuales['giro_exterior'];
+        $comAduana = $datos_actuales['com_aduana'];
+        $oficial = $datos_actuales['tc_oficial'];
     } else {
-        $iva =  $_POST['iva'];
+        $iva = $_POST['iva'];
         $it = $_POST['it'];
         $itf = $_POST['itf'];
         $giro = $_POST['giro_exterior'];
         $comAduana = $_POST['com_aduana'];
         $oficial = $_POST['tc_oficial'];
     }
-    var_dump($_POST);
 
-    $fechaCierre = !empty($_POST['fecha_cierre']) ? $_POST['fecha_cierre'] : $datos_variables['fecha_cierre'];
-    
+    $fechaCierre = !empty($_POST['fecha_cierre']) ? $_POST['fecha_cierre'] : $datos_actuales['fecha_cierre'];
+
+    $monto_adjudicado = isset($_POST['monto_adjudicado']) ? $_POST['monto_adjudicado'] : $datos_actuales['monto_adjudicado'];
+
     $stmt = $conn->prepare("UPDATE proyecto SET 
         fecha_proyecto = ?, 
         titulo = ?, 
         cliente = ?,
-        fecha_proyecto = ?,
         fecha_cierre = ?, 
         iva = ?, 
         it = ?, 
@@ -44,14 +44,14 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         tc_paralelo_hoy = ?,
         tc_estimado30 = ?,
         tc_estimado60 = ?,
-        pago_anticipado_DMC = ?
+        pago_anticipado_DMC = ?,
+        monto_adjudicado = ?
         WHERE id_proyecto = ?");
 
     $stmt->execute([
         $_POST['fecha_proyecto'],
         $_POST['titulo'],
         $_POST['cliente'],
-        $_POST['fecha_proyecto'],
         $fechaCierre,
         $iva,
         $it,
@@ -63,13 +63,12 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $_POST['tc_estimado30'],
         $_POST['tc_estimado60'],
         $_POST['pago_anticipado_DMC'],
+        $monto_adjudicado, 
         $id_proyecto
     ]);
 
     actualizar($id_proyecto);
 
-
-
     header("Location: ver_proyecto.php?id=$id_proyecto&guardado=1");
+    exit();
 }
-?>

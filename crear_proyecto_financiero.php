@@ -7,7 +7,6 @@ verificarPermiso("finanzas", "crear");
 $proyecto_id = isset($_GET['proyecto_id']) ? intval($_GET['proyecto_id']) : null;
 $proyecto_original = null;
 
-// Si viene con proyecto_id, obtener los datos del proyecto
 if ($proyecto_id) {
     $stmt = $conn->prepare("SELECT p.*, s.nombre as sucursal_nombre 
                            FROM proyecto p 
@@ -21,7 +20,6 @@ if ($proyecto_id) {
         exit();
     }
     
-    // Verificar que no esté ya vinculado
     $stmt = $conn->prepare("SELECT id FROM proyecto_financiero WHERE presupuesto_id = ?");
     $stmt->execute([$proyecto_id]);
     if ($stmt->fetch()) {
@@ -30,22 +28,20 @@ if ($proyecto_id) {
     }
 }
 
-// Obtener sucursales
 $sucursales = [];
 if ($_SESSION['usuario']['sucursal_id'] == 1) {
     $stmt = $conn->query("SELECT * FROM sucursales WHERE id != 1 ORDER BY nombre");
     $sucursales = $stmt->fetchAll(PDO::FETCH_ASSOC);
 }
 
-// Obtener estado por defecto (primer estado)
 $stmt = $conn->query("SELECT id FROM estado_finanzas ORDER BY id LIMIT 1");
 $estado_default = $stmt->fetchColumn();
 
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
-    // Si tiene proyecto vinculado, usar los datos del proyecto original
     if ($proyecto_id) {
         $titulo = $proyecto_original['titulo'];
         $cliente = $proyecto_original['cliente'];
+        $monto_adjudicado = $proyecto_original['monto_adjudicado'];
     } else {
         $titulo = trim($_POST['titulo']);
         $cliente = trim($_POST['cliente']);
@@ -54,27 +50,23 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $fecha_inicio = $_POST['fecha_inicio'];
     $presupuesto_id = $proyecto_id ? $proyecto_id : null;
 
-    // Determinar sucursal
     if ($_SESSION['usuario']['sucursal_id'] == 1) {
         $sucursal = intval($_POST['sucursal']);
     } else {
         $sucursal = $_SESSION['usuario']['sucursal_id'];
     }
 
-    // Validaciones
     if (!$proyecto_id && (empty($titulo) || empty($cliente))) {
         $error = "Título y cliente son obligatorios";
     } else {
         try {
             $conn->beginTransaction();
 
-            // Obtener y actualizar el contador
             $stmt = $conn->prepare("SELECT numero_actual FROM contadores WHERE documento = 'finanzas' AND anio = ? FOR UPDATE");
             $stmt->execute([date('Y')]);
             $numero_actual = $stmt->fetchColumn();
 
             if ($numero_actual === false) {
-                // Si no existe el contador para este año, crearlo
                 $stmt = $conn->prepare("INSERT INTO contadores (documento, anio, numero_actual) VALUES ('finanzas', ?, 1)");
                 $stmt->execute([date('Y')]);
                 $nuevo_numero = 1;
@@ -84,7 +76,6 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 $stmt->execute([$nuevo_numero, date('Y')]);
             }
 
-            // Insertar proyecto financiero
             $stmt = $conn->prepare("INSERT INTO proyecto_financiero
                                   (id_usuario, fecha_inicio, titulo, cliente, numero_proyectoF, sucursal_id, estado_id, presupuesto_id) 
                                   VALUES (?, ?, ?, ?, ?, ?, ?, ?)");
@@ -101,10 +92,16 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             ]);
             
             $id_proyecto_financiero = $conn->lastInsertId();
+
+            $stmt = $conn->prepare("INSERT INTO datos_cabecera (id_proyecto, precio_final_venta) VALUES (?, ?)");
+            
+            $stmt->execute([$id_proyecto_financiero, $monto_adjudicado ?? 0 ]);
+            
             $conn->commit();
             
             header("Location: proyecto_financiero.php?id=$id_proyecto_financiero&success=Proyecto financiero creado correctamente");
             exit();
+
         } catch (PDOException $e) {
             $conn->rollBack();
             $error = "Error al crear proyecto financiero: " . $e->getMessage();
@@ -221,7 +218,6 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         }
 
         .proyecto-info h3::before {
-            content: "🔗";
             font-size: 1.5rem;
         }
         
@@ -267,7 +263,6 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         }
 
         .proyecto-info-note::before {
-            content: "ℹ️";
             font-size: 1.2rem;
         }
 

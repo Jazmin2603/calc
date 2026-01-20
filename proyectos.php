@@ -84,23 +84,8 @@ $stmt_count->execute($params);
 $total_resultados = $stmt_count->fetchColumn();
 $total_paginas = ceil($total_resultados / $por_pagina);
 
-$query = "
-SELECT 
-    p.*,
-    u.nombre AS nombre_usuario,
-    s.nombre AS sucursal_nombre,
-    e.estado AS estado,
-    COALESCE(SUM(i.total_usd_bo), 0) AS monto_total
-$query_base
-$where_clause
-GROUP BY 
-    p.id_proyecto,
-    u.nombre,
-    s.nombre,
-    e.estado
-ORDER BY p.numero_proyecto DESC
-LIMIT $por_pagina OFFSET $offset
-";
+$query = "SELECT p.*, u.nombre AS nombre_usuario, s.nombre AS sucursal_nombre, e.estado AS estado, COALESCE(SUM(i.total_usd_bo), 0) AS monto_total $query_base $where_clause
+GROUP BY p.id_proyecto, u.nombre, s.nombre, e.estado ORDER BY p.numero_proyecto DESC LIMIT $por_pagina OFFSET $offset ";
 
 $stmt = $conn->prepare($query);
 $stmt->execute($params);
@@ -124,7 +109,6 @@ if (esSuperusuario()) {
 $stmt = $conn->query("SELECT * FROM estados");
 $estados = $stmt->fetchAll(PDO::FETCH_ASSOC);
 
-// Lógica de paginación mejorada
 $rango_paginas = 5;
 $inicio_rango = max(1, $pagina_actual - floor($rango_paginas / 2));
 $fin_rango = min($total_paginas, $inicio_rango + $rango_paginas - 1);
@@ -414,7 +398,7 @@ if ($fin_rango - $inicio_rango < $rango_paginas - 1) {
                               esSuperusuario()): ?>
                         <form method="post" action="cambiar_estado.php">
                             <input type="hidden" name="id_proyecto" value="<?= $proyecto['id_proyecto'] ?>">
-                            <select name="estado_id" onchange="this.form.submit()" class="estado-selector">
+                            <select name="estado_id" onchange="verificarEstado(this)" class="estado-selector">
                                 <?php foreach ($estados as $estado): ?>
                                     <option value="<?= $estado['id'] ?>" <?= $estado['estado'] == $proyecto['estado'] ? 'selected' : '' ?>>
                                         <?= htmlspecialchars($estado['estado']) ?>
@@ -443,26 +427,22 @@ if ($fin_rango - $inicio_rango < $rango_paginas - 1) {
 
     <?php if ($total_paginas > 1): ?>
     <div id="contenedor-paginacion" class="paginacion">
-        <!-- Botón Primera página -->
         <?php if ($pagina_actual > 1): ?>
             <a href="?<?= http_build_query(array_merge($_GET, ['pagina' => 1])) ?>" class="paginacion-control" title="Primera página">
                 ««
             </a>
         <?php endif; ?>
 
-        <!-- Botón Anterior -->
         <?php if ($pagina_actual > 1): ?>
             <a href="?<?= http_build_query(array_merge($_GET, ['pagina' => $pagina_actual - 1])) ?>" class="paginacion-control" title="Página anterior">
                 «
             </a>
         <?php endif; ?>
 
-        <!-- Mostrar "..." si hay páginas antes del rango -->
         <?php if ($inicio_rango > 1): ?>
             <span class="paginacion-puntos">...</span>
         <?php endif; ?>
 
-        <!-- Páginas numeradas -->
         <?php for ($i = $inicio_rango; $i <= $fin_rango; $i++): ?>
             <a href="?<?= http_build_query(array_merge($_GET, ['pagina' => $i])) ?>" 
                class="<?= $i == $pagina_actual ? 'pagina-activa' : '' ?>">
@@ -470,32 +450,51 @@ if ($fin_rango - $inicio_rango < $rango_paginas - 1) {
             </a>
         <?php endfor; ?>
 
-        <!-- Mostrar "..." si hay páginas después del rango -->
         <?php if ($fin_rango < $total_paginas): ?>
             <span class="paginacion-puntos">...</span>
         <?php endif; ?>
 
-        <!-- Botón Siguiente -->
         <?php if ($pagina_actual < $total_paginas): ?>
             <a href="?<?= http_build_query(array_merge($_GET, ['pagina' => $pagina_actual + 1])) ?>" class="paginacion-control" title="Página siguiente">
                 »
             </a>
         <?php endif; ?>
 
-        <!-- Botón Última página -->
         <?php if ($pagina_actual < $total_paginas): ?>
             <a href="?<?= http_build_query(array_merge($_GET, ['pagina' => $total_paginas])) ?>" class="paginacion-control" title="Última página">
                 »»
             </a>
         <?php endif; ?>
 
-        <!-- Información de página actual -->
         <span class="paginacion-info">
             Página <?= $pagina_actual ?> de <?= $total_paginas ?>
         </span>
     </div>
     <?php endif; ?>
 
+</div>
+
+<div id="modalGanado" style="display:none; position:fixed; z-index:1000; left:0; top:0; width:100%; height:100%; background:rgba(0,0,0,0.5); align-items:center; justify-content:center;">
+    <div style="background:white; padding:30px; border-radius:12px; width:400px; box-shadow: 0 5px 20px rgba(0,0,0,0.2); text-align:center;">
+        <h2 style="color:#34a44c;">¡Felicidades!</h2>
+        <p style="margin-bottom:20px;">Anota el Monto Adjudicado para este proyecto.</p>
+        
+        <form id="formMontoAdjudicado">
+            <input type="hidden" id="modal_id_proyecto">
+            <input type="hidden" id="modal_estado_id">
+            
+            <div style="margin-bottom:20px;">
+                <label style="display:block; font-weight:bold; margin-bottom:10px;">Monto (Bs):</label>
+                <input type="number" step="0.01" id="modal_monto" required 
+                       style="width:100%; padding:10px; border-radius:8px; border:1px solid #ddd; font-size:1.1rem;">
+            </div>
+            
+            <div style="display:flex; gap:10px; justify-content:center;">
+                <button type="submit" class="btn" style="background:#34a44c; color:white; border:none; margin-bottom:20px;">Guardar</button>
+                <button type="button" class="btn-back" onclick="cerrarModal()" style="border:none; margin-bottom:20px; margin-top:20px;">Cancelar</button>
+            </div>
+        </form>
+    </div>
 </div>
 
 <script>
@@ -531,6 +530,50 @@ document.addEventListener("DOMContentLoaded", function () {
 
     buscador.addEventListener("keyup", function () {
         buscarProyectos();
+    });
+});
+
+function verificarEstado(select) {
+    const estadoTexto = select.options[select.selectedIndex].text.toLowerCase();
+    const idProyecto = select.form.querySelector('input[name="id_proyecto"]').value;
+    const idEstado = select.value;
+
+    if (estadoTexto === "ganado") {
+        document.getElementById('modalGanado').style.display = 'flex';
+        document.getElementById('modal_id_proyecto').value = idProyecto;
+        document.getElementById('modal_estado_id').value = idEstado;
+        document.getElementById('modal_monto').focus();
+    } else {
+        select.form.submit();
+    }
+}
+
+function cerrarModal() {
+    document.getElementById('modalGanado').style.display = 'none';
+    location.reload();
+}
+
+document.getElementById('formMontoAdjudicado').addEventListener('submit', function(e) {
+    e.preventDefault();
+    
+    const data = {
+        id_proyecto: document.getElementById('modal_id_proyecto').value,
+        estado_id: document.getElementById('modal_estado_id').value,
+        monto_adjudicado: document.getElementById('modal_monto').value
+    };
+
+    fetch('presupuesto_ganado.php', {
+        method: 'POST',
+        headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify(data)
+    })
+    .then(response => response.json())
+    .then(res => {
+        if(res.success) {
+            location.reload();
+        } else {
+            alert("Error: " + res.message);
+        }
     });
 });
 </script>

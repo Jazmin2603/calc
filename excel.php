@@ -14,12 +14,19 @@ $stmt = $conn->prepare("SELECT id_proyecto FROM proyecto WHERE numero_proyecto =
 $stmt->execute([$numero_proyecto]);
 $proyecto = $stmt->fetch();
 
+
+
 if (!$proyecto) {
     header("HTTP/1.1 404 Not Found");
     exit;
 }
 
-$filePath = "/mnt/files/hoja_{$numero_proyecto}.xlsx";
+$getAnio = "SELECT anio FROM `contadores` WHERE numero_fin < ? AND documento = 'presupuestos'";
+$stmt = $conn->prepare($getAnio);
+$stmt->execute([$numero_proyecto]);
+$anio = $stmt->fetch(PDO::FETCH_ASSOC);
+
+$filePath = "/mnt/files/adjuntos_presupuestos/{$anio}/hoja_{$numero_proyecto}.xlsx";
 
 if (isset($data['url'])) {
     $fileContent = @file_get_contents($data['url']);

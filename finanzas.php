@@ -34,7 +34,7 @@ $query_base = "FROM proyecto_financiero pf
                JOIN estado_finanzas ef ON pf.estado_id = ef.id";
 
 // Filtros por rol
-if ($_SESSION['usuario']['rol_id'] == 2 || esSuperusuario()) {
+if (esGerente() || esSuperusuario()) {
     if (esSuperusuario()) {
         if ($filtro_sucursal && $filtro_sucursal != 1) {
             $conditions[] = "pf.sucursal_id = ?";
@@ -117,7 +117,7 @@ if (esSuperusuario()) {
                              ORDER BY u.nombre");
     }
     $usuarios = $stmt->fetchAll(PDO::FETCH_ASSOC);
-} elseif ($_SESSION['usuario']['rol_id'] == 2) {
+} elseif (esGerente()) {
     $stmt = $conn->prepare("SELECT DISTINCT u.id, u.nombre 
                            FROM usuarios u 
                            JOIN proyecto_financiero pf ON pf.id_usuario = u.id 
@@ -133,7 +133,7 @@ $estados_finanzas = $stmt->fetchAll(PDO::FETCH_ASSOC);
 
 // Obtener proyectos ganados para el modal
 $proyectos_ganados = [];
-if ($_SESSION['usuario']['rol_id'] == 2) {
+if (tienePermiso("finanzas", "crear")) {
     $query_ganados = "SELECT p.id_proyecto, p.numero_proyecto, p.titulo, p.cliente 
                      FROM proyecto p 
                      JOIN estados e ON p.estado_id = e.id

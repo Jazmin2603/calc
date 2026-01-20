@@ -11,6 +11,7 @@ $stmt = $conn->prepare($query);
 $stmt->execute([$id_proyecto]);
 $proyecto = $stmt->fetch(PDO::FETCH_ASSOC);
 
+
 if (!$proyecto) {
     header("Location: proyectos.php?error=Proyecto no encontrado");
     exit();
@@ -22,6 +23,13 @@ if (esGerente()
     header("Location: proyectos.php?error=No autorizado");
     exit();
 }
+
+$numero_proyecto = $proyecto['numero_proyecto'];
+
+$queryAnio = "SELECT anio FROM `contadores` WHERE numero_fin < ? AND documento = 'presupuestos'";
+$stmt = $conn->prepare($queryAnio);
+$stmt->execute([$numero_proyecto]);
+$anio = $stmt->fetch(PDO::FETCH_ASSOC);
 
 
 $items = $conn->prepare("SELECT * FROM items WHERE id_proyecto = ? ORDER BY id_item");
@@ -395,9 +403,9 @@ $params = array_filter([
 
     </script>
     <?php
-        $archivoExcel = "/mnt/files/hoja_{$proyecto['numero_proyecto']}.xlsx";
+        $archivoExcel = "/mnt/files/adjuntos_presupuestos/$anio/hoja_{$proyecto['numero_proyecto']}.xlsx";
         if (!file_exists($archivoExcel)) {
-            copy("/mnt/files/hoja.xlsx", $archivoExcel);
+            copy("/mnt/files/adjuntos_presupuestos/hoja.xlsx", $archivoExcel);
         }
         $keyDocumento = md5($proyecto['numero_proyecto'] . time());
 
@@ -408,13 +416,14 @@ $params = array_filter([
         require 'vendor/autoload.php';
 
         use Firebase\JWT\JWT;
+        $documentoUrl = "https://calc.fils.bo/documentos/adjuntos_presupuestos/{$anio}/hoja_{$proyecto['numero_proyecto']}.xlsx";
 
         $payload = [
             "document" => [
                 "fileType" => "xlsx",
                 "key" => $keyDocumento,
                 "title" => "hoja_{$proyecto['numero_proyecto']}.xlsx",
-                "url" => "https://calc.fils.bo/documentos/hoja_{$proyecto['numero_proyecto']}.xlsx"
+                "url" => $documentoUrl
             ],
             "documentType" => "cell",
             "editorConfig" => [
@@ -426,7 +435,7 @@ $params = array_filter([
             ]
         ];
 
-        //$token = JWT::encode($payload, 'mGjywTdwQa4TalK2AZGulwiXvYPLvpve', 'HS256');
+        //$token = JWT::encode($payload, 'IyawrmF4wLur9tJhehaieI4Vi6ALTsTO', 'HS256');
         
     ?>
 
@@ -455,7 +464,7 @@ $params = array_filter([
                     fileType: "xlsx",
                     key: "<?= $keyDocumento ?>",
                     title: "hoja_<?= $proyecto['numero_proyecto'] ?>.xlsx",
-                    url: "https://calc.fils.bo/documentos/hoja_<?= $proyecto['numero_proyecto'] ?>.xlsx"
+                    url: "<?= $documentoUrl ?>"
                 },
                 documentType: "cell",
                 editorConfig: {

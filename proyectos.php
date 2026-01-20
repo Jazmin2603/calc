@@ -32,7 +32,7 @@ JOIN sucursales s ON p.sucursal_id = s.id
 JOIN estados e ON p.estado_id = e.id
 LEFT JOIN items i ON p.id_proyecto = i.id_proyecto";
 
-if ($_SESSION['usuario']['rol_id'] == 2) {
+if (esGerente() || esSuperusuario()) {
     if (esSuperusuario()) {
         if ($filtro_sucursal && $filtro_sucursal != 1) {
             $conditions[] = "p.sucursal_id = ?";
@@ -345,7 +345,7 @@ if ($fin_rango - $inicio_rango < $rango_paginas - 1) {
                             </option>
                         <?php endforeach; ?>
                     </select>
-                <?php elseif ($_SESSION['usuario']['rol_id'] == 2): ?>
+                <?php elseif (esGerente() || esSuperusuario()): ?>
                     <select name="usuario" id="selector" onchange="this.form.submit()">
                         <option value="">Todos los usuarios</option>
                         <?php
@@ -411,7 +411,7 @@ if ($fin_rango - $inicio_rango < $rango_paginas - 1) {
 
                 <td>
                     <?php if (($proyecto['id_usuario'] == $_SESSION['usuario']['id']) || 
-                              ($_SESSION['usuario']['rol_id'] == 2 && $_SESSION['usuario']['sucursal_id'] == 1)): ?>
+                              esSuperusuario()): ?>
                         <form method="post" action="cambiar_estado.php">
                             <input type="hidden" name="id_proyecto" value="<?= $proyecto['id_proyecto'] ?>">
                             <select name="estado_id" onchange="this.form.submit()" class="estado-selector">

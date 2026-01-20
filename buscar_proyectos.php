@@ -18,7 +18,7 @@ JOIN usuarios u ON p.id_usuario = u.id
 JOIN sucursales s ON p.sucursal_id = s.id
 JOIN estados e ON p.estado_id = e.id";
 
-if ($_SESSION['usuario']['rol'] == ROL_GERENTE) {
+if ($_SESSION['usuario']['rol_id'] == 2) {
     if ($_SESSION['usuario']['sucursal_id'] == 1) {
         if ($filtro_sucursal && $filtro_sucursal != 1) {
             $conditions[] = "p.sucursal_id = ?";
@@ -37,7 +37,7 @@ if ($_SESSION['usuario']['rol'] == ROL_GERENTE) {
             $params[] = $filtro_usuario;
         }
     }
-} elseif ($_SESSION['usuario']['rol'] == ROL_VENDEDOR) {
+} elseif ($_SESSION['usuario']['rol_id'] == 3) {
     $conditions[] = "p.id_usuario = ?";
     $params[] = $_SESSION['usuario']['id'];
 }
@@ -75,13 +75,13 @@ foreach ($proyectos as $proyecto):
                 </td>
                 <td><i class="far fa-calendar-alt"></i> <?= date('d/m/Y', strtotime($proyecto['fecha_proyecto'])) ?></td>
                 <td><?= htmlspecialchars($proyecto['nombre_usuario']) ?></td>
-        <?php if ($_SESSION['usuario']['rol'] == ROL_GERENTE && $_SESSION['usuario']['sucursal_id'] == 1): ?>
+        <?php if (esSuperusuario()): ?>
                 <td><span class="tag-sucursal"><?= htmlspecialchars($proyecto['sucursal_nombre']) ?></span></td>
         <?php endif; ?>
 
         <td>
             <?php if (($proyecto['id_usuario'] == $_SESSION['usuario']['id']) || 
-                      ($_SESSION['usuario']['rol'] == ROL_GERENTE && $_SESSION['usuario']['sucursal_id'] == 1)): ?>
+                      (esSuperusuario())): ?>
                 <form method="post" action="cambiar_estado.php">
                     <input type="hidden" name="id_proyecto" value="<?= $proyecto['id_proyecto'] ?>">
                     <select name="estado_id" onchange="this.form.submit()" class="estado-selector">

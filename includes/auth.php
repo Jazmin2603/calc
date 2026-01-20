@@ -45,7 +45,7 @@ function verificarPrimerIngreso() {
 }
 
 function esGerente() {
-    return isset($_SESSION['usuario']) && $_SESSION['usuario']['rol'] == ROL_GERENTE;
+    return isset($_SESSION['usuario']) && $_SESSION['usuario']['rol_id'] == 2;
 }
 
 function cerrarSesion() {

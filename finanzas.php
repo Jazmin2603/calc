@@ -2,10 +2,7 @@
 include 'includes/config.php';
 include 'includes/auth.php';
 
-if (!isset($_SESSION['usuario'])) {
-    header("Location: index.php");
-    exit();
-}
+verificarPermiso("finanzas", "ver");
 
 if ($_SERVER['REQUEST_METHOD'] === 'GET') {
     $_SESSION['filtros_presupuestos'] = [
@@ -23,13 +20,13 @@ $filtro_estado_finanzas = isset($_GET['estado_finanzas']) ? intval($_GET['estado
 $busqueda = isset($_GET['buscar']) ? trim($_GET['buscar']) : ($_SESSION['filtros_presupuestos']['buscar'] ?? '');
 
 $pagina_actual = isset($_GET['pagina']) ? max(1, intval($_GET['pagina'])) : ($_SESSION['filtros_presupuestos']['pagina'] ?? 1);
-$por_pagina = 10;
+$por_pagina = 50;
 $offset = ($pagina_actual - 1) * $por_pagina;
 
 $conditions = [];
 $params = [];
 
-// Query base CORREGIDO (sin punto y coma)
+// Query base
 $query_base = "FROM proyecto_financiero pf 
                LEFT JOIN proyecto p ON pf.presupuesto_id = p.id_proyecto
                JOIN usuarios u ON pf.id_usuario = u.id 
@@ -37,8 +34,8 @@ $query_base = "FROM proyecto_financiero pf
                JOIN estado_finanzas ef ON pf.estado_id = ef.id";
 
 // Filtros por rol
-if ($_SESSION['usuario']['rol'] == ROL_GERENTE) {
-    if ($_SESSION['usuario']['sucursal_id'] == 1) {
+if ($_SESSION['usuario']['rol_id'] == 2 || esSuperusuario()) {
+    if (esSuperusuario()) {
         if ($filtro_sucursal && $filtro_sucursal != 1) {
             $conditions[] = "pf.sucursal_id = ?";
             $params[] = $filtro_sucursal;
@@ -56,7 +53,7 @@ if ($_SESSION['usuario']['rol'] == ROL_GERENTE) {
             $params[] = $filtro_usuario;
         }
     }
-} elseif ($_SESSION['usuario']['rol'] == ROL_VENDEDOR) {
+} elseif ($_SESSION['usuario']['rol_id'] == 4) {
     $conditions[] = "pf.id_usuario = ?";
     $params[] = $_SESSION['usuario']['id'];
 }
@@ -66,7 +63,7 @@ if ($filtro_estado_finanzas) {
     $params[] = $filtro_estado_finanzas;
 }
 
-// Búsqueda CORREGIDA - buscar en ambos: pf y p
+// Búsqueda
 if (!empty($busqueda)) {
     $conditions[] = "(COALESCE(pf.titulo, p.titulo) LIKE ? OR COALESCE(pf.cliente, p.cliente) LIKE ? OR pf.numero_proyectoF LIKE ? OR p.numero_proyecto LIKE ?)";
     $params[] = "%$busqueda%";
@@ -84,7 +81,7 @@ $stmt_count->execute($params);
 $total_resultados = $stmt_count->fetchColumn();
 $total_paginas = ceil($total_resultados / $por_pagina);
 
-// Query principal CORREGIDA con COALESCE
+// Query principal
 $query = "SELECT pf.*, 
                  COALESCE(pf.titulo, p.titulo) as titulo_mostrar,
                  COALESCE(pf.cliente, p.cliente) as cliente_mostrar,
@@ -102,7 +99,7 @@ $proyectos_financieros = $stmt->fetchAll(PDO::FETCH_ASSOC);
 // Obtener sucursales y usuarios para filtros
 $sucursales = [];
 $usuarios = [];
-if ($_SESSION['usuario']['rol'] == ROL_GERENTE && $_SESSION['usuario']['sucursal_id'] == 1) {
+if (esSuperusuario()) {
     $stmt = $conn->query("SELECT * FROM sucursales WHERE id != 1 ORDER BY nombre");
     $sucursales = $stmt->fetchAll(PDO::FETCH_ASSOC);
 
@@ -120,7 +117,7 @@ if ($_SESSION['usuario']['rol'] == ROL_GERENTE && $_SESSION['usuario']['sucursal
                              ORDER BY u.nombre");
     }
     $usuarios = $stmt->fetchAll(PDO::FETCH_ASSOC);
-} elseif ($_SESSION['usuario']['rol'] == ROL_GERENTE) {
+} elseif ($_SESSION['usuario']['rol_id'] == 2) {
     $stmt = $conn->prepare("SELECT DISTINCT u.id, u.nombre 
                            FROM usuarios u 
                            JOIN proyecto_financiero pf ON pf.id_usuario = u.id 
@@ -136,7 +133,7 @@ $estados_finanzas = $stmt->fetchAll(PDO::FETCH_ASSOC);
 
 // Obtener proyectos ganados para el modal
 $proyectos_ganados = [];
-if ($_SESSION['usuario']['rol'] == ROL_GERENTE) {
+if ($_SESSION['usuario']['rol_id'] == 2) {
     $query_ganados = "SELECT p.id_proyecto, p.numero_proyecto, p.titulo, p.cliente 
                      FROM proyecto p 
                      JOIN estados e ON p.estado_id = e.id
@@ -172,6 +169,197 @@ if ($fin_rango - $inicio_rango < $rango_paginas - 1) {
     <link rel="icon" type="image/jpg" href="assets/icono.jpg">
     <link rel="stylesheet" href="styles.css">
     <style>
+        /* --- VARIABLES Y BASES --- */
+        :root {
+            --primary-color: #34a44c;
+            --secondary-color: #2c3e50;
+            --bg-light: #f8f9fa;
+            --shadow: 0 4px 15px rgba(0,0,0,0.08);
+        }
+
+        /* --- CONTENEDOR PRINCIPAL --- */
+        .container {
+            max-width: 1300px;
+            margin: 20px auto;
+            padding: 25px;
+            background: #fff;
+            border-radius: 12px;
+            box-shadow: var(--shadow);
+        }
+
+        /* --- FILTROS --- */
+        .filtros-container {
+            background: #f8f9fa;
+            padding: 20px;
+            border-radius: 12px;
+            margin-bottom: 20px;
+            display: flex;
+            flex-wrap: wrap;
+            gap: 15px;
+            align-items: center;
+            border: 1px solid #edf2f7;
+        }
+
+        .filtros-container select,
+        .filtros-container input[type="text"] {
+            padding: 10px 15px;
+            border-radius: 8px;
+            border: 1px solid #d1d5db;
+            background-color: #ffffff;
+            color: #4b5563;
+            font-size: 0.9rem;
+            outline: none;
+            transition: all 0.2s ease;
+        }
+
+        .filtros-container select:focus,
+        .filtros-container input[type="text"]:focus {
+            border-color: var(--primary-color);
+            box-shadow: 0 0 0 3px rgba(52,164,76,.15);
+        }
+
+        .filtros-container input[type="text"] {
+            flex-grow: 1;
+            min-width: 250px;
+        }
+
+        .filtros-container label {
+            font-size: 0.85rem;
+            font-weight: 600;
+            color: #6b7280;
+            margin-right: 5px;
+        }
+
+        .filtro-form {
+            display: flex;
+            gap: 15px;
+            flex-wrap: wrap;
+            width: 100%;
+        }
+
+        .filtros-izquierda {
+            display: flex;
+            gap: 15px;
+            flex-wrap: wrap;
+        }
+
+        .filtro-derecha {
+            display: flex;
+            gap: 15px;
+            margin-left: auto;
+        }
+
+        /* --- TABLA MODERNA --- */
+        .proyectos-table {
+            width: 100%;
+            border-collapse: separate;
+            border-spacing: 0 10px;
+            margin-top: 10px;
+        }
+
+        .proyectos-table thead th {
+            background: transparent;
+            color: #7f8c8d;
+            text-transform: uppercase;
+            font-size: 0.75rem;
+            font-weight: 700;
+            padding: 12px 15px;
+            border: none;
+            text-align: left;
+        }
+
+        .proyectos-table tbody tr {
+            background-color: white;
+            transition: transform 0.2s;
+        }
+
+        .proyectos-table tbody tr:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 5px 15px rgba(0,0,0,0.05);
+        }
+
+        .proyectos-table td {
+            padding: 18px 15px;
+            border-top: 1px solid #f0f0f0;
+            border-bottom: 1px solid #f0f0f0;
+        }
+
+        .proyectos-table td:first-child {
+            border-left: 1px solid #f0f0f0;
+            border-radius: 10px 0 0 10px;
+            font-weight: bold;
+            color: #34a44c;
+        }
+
+        .proyectos-table td:last-child {
+            border-right: 1px solid #f0f0f0;
+            border-radius: 0 10px 10px 0;
+            text-align: center;
+        }
+
+        .estado-selector {
+            padding: 6px 12px;
+            border-radius: 20px;
+            font-size: 0.8rem;
+            font-weight: 600;
+            border: 1px solid #eee;
+            background: #f8f9fa;
+        }
+
+        .tag-sucursal {
+            display: inline-block;
+            padding: 4px 12px;
+            background: #e3f2fd;
+            color: #1976d2;
+            border-radius: 12px;
+            font-size: 0.8rem;
+            font-weight: 600;
+        }
+
+        /* --- PAGINACIÓN --- */
+        .paginacion {
+            margin-top: 30px;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            gap: 8px;
+        }
+
+        .paginacion a {
+            padding: 10px 16px;
+            background-color: #fff;
+            text-decoration: none;
+            color: var(--secondary-color);
+            border: 1px solid #ddd;
+            border-radius: 8px;
+            transition: all 0.3s ease;
+        }
+
+        .paginacion a:hover:not(.pagina-activa) {
+            background-color: var(--primary-color);
+            color: white;
+            border-color: var(--primary-color);
+        }
+
+        .paginacion a.pagina-activa {
+            background-color: var(--primary-color);
+            color: white;
+            border-color: var(--primary-color);
+            font-weight: bold;
+        }
+
+        .paginacion-info {
+            margin-left: 20px;
+            font-size: 0.9rem;
+            color: #7f8c8d;
+        }
+
+        .paginacion-puntos {
+            padding: 0 5px;
+            color: #7f8c8d;
+        }
+
+        /* --- MODAL --- */
         .modal {
             display: none;
             position: fixed;
@@ -184,51 +372,71 @@ if ($fin_rango - $inicio_rango < $rango_paginas - 1) {
         }
 
         .modal-content {
-            background-color: white;
-            margin: 10% auto;
-            padding: 20px;
-            border-radius: 8px;
-            width: 500px;
-            max-width: 90%;
+            background-color: #fff;
+            margin: 5% auto;
+            padding: 30px;
+            border-radius: 12px;
+            box-shadow: var(--shadow);
+            width: 90%;
+            max-width: 600px;
+        }
+
+        .modal-content h3 {
+            margin-top: 0;
+            color: var(--secondary-color);
         }
 
         .modal-buttons {
             display: flex;
             gap: 10px;
             margin-top: 20px;
-            justify-content: flex-end;
+            flex-wrap: wrap;
         }
 
         .btn-modal {
             padding: 10px 20px;
             border: none;
-            border-radius: 4px;
+            border-radius: 8px;
             cursor: pointer;
+            font-size: 0.9rem;
+            transition: all 0.3s ease;
         }
 
-        .btn-primary {
-            background-color: #34a44c;
+        .btn-modal.btn-primary {
+            background-color: var(--primary-color);
             color: white;
         }
 
-        .btn-secondary {
+        .btn-modal.btn-primary:hover {
+            background-color: #2d8f42;
+        }
+
+        .btn-modal.btn-secondary {
             background-color: #6c757d;
             color: white;
         }
 
+        .btn-modal.btn-secondary:hover {
+            background-color: #5a6268;
+        }
+
+        .hidden {
+            display: none !important;
+        }
+
         .proyecto-list {
-            max-height: 200px;
+            max-height: 300px;
             overflow-y: auto;
-            border: 1px solid #ddd;
-            border-radius: 4px;
-            padding: 10px;
-            margin: 10px 0;
+            margin: 15px 0;
+            border: 1px solid #eee;
+            border-radius: 8px;
         }
 
         .proyecto-item {
-            padding: 8px;
-            border-bottom: 1px solid #eee;
+            padding: 12px;
+            border-bottom: 1px solid #f0f0f0;
             cursor: pointer;
+            transition: background-color 0.2s;
         }
 
         .proyecto-item:hover {
@@ -236,65 +444,36 @@ if ($fin_rango - $inicio_rango < $rango_paginas - 1) {
         }
 
         .proyecto-item.selected {
-            background-color: #34a44c;
-            color: white;
+            background-color: #e8f5e9;
+            border-left: 4px solid var(--primary-color);
         }
 
-        .hidden {
-            display: none;
-        }
+        /* --- RESPONSIVE --- */
+        @media (max-width: 768px) {
+            .filtro-form {
+                flex-direction: column;
+                align-items: stretch;
+            }
 
-        .paginacion {
-            margin-top: 20px;
-            text-align: center;
-            display: flex;
-            justify-content: center;
-            align-items: center;
-            gap: 5px;
-            flex-wrap: wrap;
-        }
+            .filtros-izquierda,
+            .filtro-derecha {
+                flex-direction: column;
+                width: 100%;
+                margin-left: 0;
+            }
 
-        .paginacion a {
-            padding: 8px 12px;
-            background-color: #fff;
-            text-decoration: none;
-            color: #34a44c;
-            border: 1px solid #ddd;
-            border-radius: 4px;
-            transition: all 0.2s ease;
-            min-width: 40px;
-            text-align: center;
-        }
+            .filtros-container input[type="text"] {
+                min-width: unset;
+                width: 100%;
+            }
 
-        .paginacion a:hover:not(.pagina-activa) {
-            background-color: #f0f0f0;
-            border-color: #34a44c;
-        }
+            .proyectos-table {
+                font-size: 14px;
+            }
 
-        .paginacion a.pagina-activa {
-            font-weight: bold;
-            background-color: #34a44c;
-            color: white;
-            border-color: #34a44c;
-        }
-
-        .paginacion-control {
-            font-weight: bold;
-            font-size: 16px;
-        }
-
-        .paginacion-puntos {
-            padding: 8px 4px;
-            color: #666;
-        }
-
-        .paginacion-info {
-            margin-left: 15px;
-            padding: 8px 12px;
-            color: #666;
-            font-size: 14px;
-            background-color: #f8f9fa;
-            border-radius: 4px;
+            .proyectos-table td {
+                padding: 12px 10px;
+            }
         }
     </style>
 </head>
@@ -304,15 +483,15 @@ if ($fin_rango - $inicio_rango < $rango_paginas - 1) {
     <header>
         <img src="assets/logo.png" class="logo">
         <h1>Proyectos Financieros</h1>
-        <div>
-            <?php if ($_SESSION['usuario']['rol'] == ROL_GERENTE): ?>
+        <div class="header-buttons">
+            <?php if (tienePermiso("finanzas", "crear")): ?>
                 <a href="#" onclick="mostrarModal(); return false;" class="btn">Nuevo Proyecto</a>
             <?php endif; ?>
             <a href="dashboard.php" class="btn-back">Volver al Dashboard</a>
         </div>
     </header>
 
-    <?php if ($_SESSION['usuario']['rol'] == ROL_GERENTE): ?>
+    <?php if (tienePermiso("finanzas", "crear")): ?>
     <div id="modalNuevoProyecto" class="modal">
         <div class="modal-content">
             <h3>Crear Nuevo Proyecto Financiero</h3>
@@ -332,7 +511,7 @@ if ($fin_rango - $inicio_rango < $rango_paginas - 1) {
                 <h4>Seleccionar Proyecto Ganado</h4>
                 <div class="proyecto-list">
                     <?php if (empty($proyectos_ganados)): ?>
-                        <p>No hay proyectos ganados disponibles</p>
+                        <p style="padding: 12px;">No hay proyectos ganados disponibles</p>
                     <?php else: ?>
                         <?php foreach ($proyectos_ganados as $proyecto): ?>
                             <div class="proyecto-item" onclick="seleccionarProyecto(<?= $proyecto['id_proyecto'] ?>, this)">
@@ -365,10 +544,10 @@ if ($fin_rango - $inicio_rango < $rango_paginas - 1) {
     </div>
     <?php endif; ?>
 
-    <div class="form-rowf">
-        <form method="get" action="" class="filtro-form">
+    <div class="filtros-container">
+        <form method="get" class="filtro-form">
             <div class="filtros-izquierda">
-                <?php if ($_SESSION['usuario']['rol'] == ROL_GERENTE && $_SESSION['usuario']['sucursal_id'] == 1): ?>
+                <?php if (esSuperusuario()): ?>
                     <select name="sucursal" onchange="this.form.submit()">
                         <option value="">Todas las sucursales</option>
                         <?php foreach ($sucursales as $sucursal): ?>
@@ -379,7 +558,7 @@ if ($fin_rango - $inicio_rango < $rango_paginas - 1) {
                     </select>
                 <?php endif; ?>
 
-                <?php if ($_SESSION['usuario']['rol'] == ROL_GERENTE): ?>
+                <?php if ($_SESSION['usuario']['rol_id'] == 2 || esSuperusuario()): ?>
                     <select name="usuario" onchange="this.form.submit()">
                         <option value="">Todos los usuarios</option>
                         <?php foreach ($usuarios as $usuario): ?>
@@ -409,38 +588,41 @@ if ($fin_rango - $inicio_rango < $rango_paginas - 1) {
         <thead>
             <tr>
                 <th>N° Financiero</th>
-                <th>Título</th>
-                <th>Cliente</th>
+                <th>Proyecto / Cliente</th>
                 <th>Fecha Inicio</th>
-                <th>Usuario</th>
-                <?php if ($_SESSION['usuario']['rol'] == ROL_GERENTE && $_SESSION['usuario']['sucursal_id'] == 1): ?>
+                <th>Responsable</th>
+                <?php if (esSuperusuario()): ?>
                     <th>Sucursal</th>
                 <?php endif; ?>
                 <th>Estado</th>
-                <th>Acciones</th>
+                <th style="text-align: center;">Acciones</th>
             </tr>
         </thead>
         <tbody id="tabla-proyectos">
             <?php if (empty($proyectos_financieros)): ?>
                 <tr>
-                    <td colspan="<?= ($_SESSION['usuario']['rol'] == ROL_GERENTE && $_SESSION['usuario']['sucursal_id'] == 1) ? '9' : '8' ?>" style="text-align: center;">
+                    <td colspan="<?= esSuperusuario() ? '7' : '6' ?>" style="text-align: center;">
                         No se encontraron proyectos financieros
                     </td>
                 </tr>
             <?php else: ?>
                 <?php foreach ($proyectos_financieros as $proyecto): ?>
                     <tr>
-                        <td><?= $proyecto['numero_proyectoF'] ?></td>
-                        <td><?= htmlspecialchars($proyecto['titulo_mostrar'] ?? 'Sin título') ?></td>
-                        <td><?= htmlspecialchars($proyecto['cliente_mostrar'] ?? 'Sin cliente') ?></td>
-                        <td><?= date('d/m/Y', strtotime($proyecto['fecha_inicio'])) ?></td>
-                        <td><?= htmlspecialchars($proyecto['nombre_usuario']) ?></td>
-                        <?php if ($_SESSION['usuario']['rol'] == ROL_GERENTE && $_SESSION['usuario']['sucursal_id'] == 1): ?>
-                            <td><?= htmlspecialchars($proyecto['sucursal_nombre']) ?></td>
-                        <?php endif; ?>
-                        <td><?= htmlspecialchars($proyecto['estado_financiero']) ?></td>
+                        <td>#<?= $proyecto['numero_proyectoF'] ?></td>
                         <td>
-                            <a href="proyecto_financiero.php?id=<?= $proyecto['id'] ?>" class="btn-view">Ver</a>
+                            <div style="font-weight: 600; color: #2c3e50;"><?= htmlspecialchars($proyecto['titulo_mostrar'] ?? 'Sin título') ?></div>
+                            <div style="font-size: 0.8rem; color: #7f8c8d;"><?= htmlspecialchars($proyecto['cliente_mostrar'] ?? 'Sin cliente') ?></div>
+                        </td>
+                        <td><i class="far fa-calendar-alt"></i> <?= date('d/m/Y', strtotime($proyecto['fecha_inicio'])) ?></td>
+                        <td><?= htmlspecialchars($proyecto['nombre_usuario']) ?></td>
+                        <?php if (esSuperusuario()): ?>
+                            <td><span class="tag-sucursal"><?= htmlspecialchars($proyecto['sucursal_nombre']) ?></span></td>
+                        <?php endif; ?>
+                        <td>
+                            <span class="estado-selector"><?= htmlspecialchars($proyecto['estado_financiero']) ?></span>
+                        </td>
+                        <td>
+                            <a href="proyecto_financiero.php?id=<?= $proyecto['id'] ?>" class="btn" style="padding: 5px 15px;">Abrir</a>
                         </td>
                     </tr>
                 <?php endforeach; ?>

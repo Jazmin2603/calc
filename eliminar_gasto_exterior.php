@@ -1,9 +1,5 @@
 
 <?php
-/**
- * ARCHIVO: eliminar_gasto_exterior.php
- */
-
 include 'includes/config.php';
 include 'includes/auth.php';
 

@@ -2,10 +2,7 @@
 include 'includes/config.php';
 include 'includes/auth.php';
 
-if (!isset($_SESSION['usuario'])) {
-    header("Location: index.php");
-    exit();
-}
+verificarPermiso("presupuestos", "ver");
 
 if ($_SERVER['REQUEST_METHOD'] === 'GET') {
     $_SESSION['filtros_presupuestos'] = [
@@ -29,13 +26,14 @@ $offset = ($pagina_actual - 1) * $por_pagina;
 $conditions = [];
 $params = [];
 
-$query_base = "FROM proyecto p 
+$query_base = "FROM proyecto p
 JOIN usuarios u ON p.id_usuario = u.id
 JOIN sucursales s ON p.sucursal_id = s.id
-JOIN estados e ON p.estado_id = e.id";
+JOIN estados e ON p.estado_id = e.id
+LEFT JOIN items i ON p.id_proyecto = i.id_proyecto";
 
-if ($_SESSION['usuario']['rol'] == ROL_GERENTE) {
-    if ($_SESSION['usuario']['sucursal_id'] == 1) {
+if ($_SESSION['usuario']['rol_id'] == 2) {
+    if (esSuperusuario()) {
         if ($filtro_sucursal && $filtro_sucursal != 1) {
             $conditions[] = "p.sucursal_id = ?";
             $params[] = $filtro_sucursal;
@@ -54,7 +52,7 @@ if ($_SESSION['usuario']['rol'] == ROL_GERENTE) {
         }
     }
 }
-if ($_SESSION['usuario']['rol'] == ROL_VENDEDOR) {
+if ($_SESSION['usuario']['rol_id'] == 3) {
     $conditions[] = "p.id_usuario = ?";
     $params[] = $_SESSION['usuario']['id'];
 }
@@ -72,16 +70,37 @@ if (!empty($busqueda)) {
 
 $where_clause = !empty($conditions) ? ' WHERE ' . implode(' AND ', $conditions) : '';
 
-$total_query = "SELECT COUNT(*) " . $query_base . $where_clause;
+$total_query = "
+    SELECT COUNT(*) FROM (
+        SELECT p.id_proyecto
+        $query_base
+        $where_clause
+        GROUP BY p.id_proyecto
+    ) AS total
+";
+
 $stmt_count = $conn->prepare($total_query);
 $stmt_count->execute($params);
 $total_resultados = $stmt_count->fetchColumn();
 $total_paginas = ceil($total_resultados / $por_pagina);
 
-$query = "SELECT p.*, u.nombre as nombre_usuario, s.nombre as sucursal_nombre, e.estado as estado "
-       . $query_base
-       . $where_clause
-       . " ORDER BY p.numero_proyecto DESC LIMIT $por_pagina OFFSET $offset";
+$query = "
+SELECT 
+    p.*,
+    u.nombre AS nombre_usuario,
+    s.nombre AS sucursal_nombre,
+    e.estado AS estado,
+    COALESCE(SUM(i.total_usd_bo), 0) AS monto_total
+$query_base
+$where_clause
+GROUP BY 
+    p.id_proyecto,
+    u.nombre,
+    s.nombre,
+    e.estado
+ORDER BY p.numero_proyecto DESC
+LIMIT $por_pagina OFFSET $offset
+";
 
 $stmt = $conn->prepare($query);
 $stmt->execute($params);
@@ -89,7 +108,7 @@ $proyectos = $stmt->fetchAll(PDO::FETCH_ASSOC);
 
 $sucursales = [];
 $usuarios = [];
-if ($_SESSION['usuario']['rol'] == ROL_GERENTE && $_SESSION['usuario']['sucursal_id'] == 1) {
+if (esSuperusuario()) {
     $stmt = $conn->query("SELECT * FROM sucursales WHERE id != 1");
     $sucursales = $stmt->fetchAll(PDO::FETCH_ASSOC);
 
@@ -141,7 +160,6 @@ if ($fin_rango - $inicio_rango < $rango_paginas - 1) {
         box-shadow: var(--shadow);
     }
 
-    /* --- DISEÑO DE LA BARRA DE FILTROS --- */
     .filtros-container {
         background: #f8f9fa;
         padding: 20px;
@@ -154,7 +172,6 @@ if ($fin_rango - $inicio_rango < $rango_paginas - 1) {
         border: 1px solid #edf2f7;
     }
 
-    /* Estilo para los Selects y el Buscador */
     .filtros-container select, 
     .filtros-container input[type="text"] {
         padding: 10px 15px;
@@ -167,20 +184,17 @@ if ($fin_rango - $inicio_rango < $rango_paginas - 1) {
         transition: all 0.2s ease;
     }
 
-    /* Efecto Focus para resaltar donde el usuario hace clic */
     .filtros-container select:focus, 
     .filtros-container input[type="text"]:focus {
         border-color: #34a44c;
         box-shadow: 0 0 0 3px rgba(52, 164, 76, 0.15);
     }
 
-    /* Buscador más ancho */
     .filtros-container input[type="text"] {
         flex-grow: 1;
         min-width: 250px;
     }
 
-    /* Estilo para las etiquetas (si usas labels) */
     .filtros-container label {
         font-size: 0.85rem;
         font-weight: 600;
@@ -188,7 +202,6 @@ if ($fin_rango - $inicio_rango < $rango_paginas - 1) {
         margin-right: 5px;
     }
 
-    /* Ajuste para dispositivos móviles */
     @media (max-width: 768px) {
         .filtros-container {
             flex-direction: column;
@@ -203,7 +216,7 @@ if ($fin_rango - $inicio_rango < $rango_paginas - 1) {
     .proyectos-table {
         width: 100%;
         border-collapse: separate;
-        border-spacing: 0 10px; /* Crea el efecto de filas separadas */
+        border-spacing: 0 10px; 
         margin-top: 10px;
     }
 
@@ -236,7 +249,6 @@ if ($fin_rango - $inicio_rango < $rango_paginas - 1) {
     .proyectos-table td:first-child { border-left: 1px solid #f0f0f0; border-radius: 10px 0 0 10px; }
     .proyectos-table td:last-child { border-right: 1px solid #f0f0f0; border-radius: 0 10px 10px 0; }
 
-    /* --- ESTADOS (BADGES) --- */
     .estado-selector {
         padding: 6px 12px;
         border-radius: 20px;
@@ -246,7 +258,6 @@ if ($fin_rango - $inicio_rango < $rango_paginas - 1) {
         background: #f8f9fa;
     }
 
-    /* --- PAGINACIÓN --- */
     .paginacion {
         margin-top: 30px;
         display: flex;
@@ -283,6 +294,15 @@ if ($fin_rango - $inicio_rango < $rango_paginas - 1) {
         font-size: 0.9rem;
         color: #7f8c8d;
     }
+    .tag-sucursal {
+        display: inline-block;
+        padding: 4px 12px;
+        background: #e3f2fd;
+        color: #1976d2;
+        border-radius: 12px;
+        font-size: 0.8rem;
+        font-weight: 600;
+    }
 
     /* --- RESPONSIVE --- */
     @media (max-width: 768px) {
@@ -307,7 +327,7 @@ if ($fin_rango - $inicio_rango < $rango_paginas - 1) {
     <div class="filtros-container">
         <form method="get" action="" class="filtro-form">
             <div class="filtros-izquierda">
-                <?php if ($_SESSION['usuario']['rol'] == ROL_GERENTE && $_SESSION['usuario']['sucursal_id'] == 1): ?>
+                <?php if (esSuperusuario()): ?>
                     <select name="sucursal" id="selector" onchange="this.form.submit()">
                         <option value="">Todas las sucursales</option>
                         <?php foreach ($sucursales as $sucursal): ?>
@@ -325,7 +345,7 @@ if ($fin_rango - $inicio_rango < $rango_paginas - 1) {
                             </option>
                         <?php endforeach; ?>
                     </select>
-                <?php elseif ($_SESSION['usuario']['rol'] == ROL_GERENTE): ?>
+                <?php elseif ($_SESSION['usuario']['rol_id'] == 2): ?>
                     <select name="usuario" id="selector" onchange="this.form.submit()">
                         <option value="">Todos los usuarios</option>
                         <?php
@@ -366,10 +386,11 @@ if ($fin_rango - $inicio_rango < $rango_paginas - 1) {
             <th>Proyecto / Cliente</th>
             <th>Fecha</th>
             <th>Responsable</th>
-            <?php if ($_SESSION['usuario']['rol'] == ROL_GERENTE && $_SESSION['usuario']['sucursal_id'] == 1): ?>
+            <?php if (esSuperusuario()): ?>
                 <th>Sucursal</th>
             <?php endif; ?>
             <th>Estado</th>
+            <th style="text-align:right;">Monto</th>
             <th style="text-align: center;">Acciones</th>
         </tr>
     </thead>
@@ -384,13 +405,13 @@ if ($fin_rango - $inicio_rango < $rango_paginas - 1) {
                 <td><i class="far fa-calendar-alt"></i> <?= date('d/m/Y', strtotime($proyecto['fecha_proyecto'])) ?></td>
                 <td><?= htmlspecialchars($proyecto['nombre_usuario']) ?></td>
                 
-                <?php if ($_SESSION['usuario']['rol'] == ROL_GERENTE && $_SESSION['usuario']['sucursal_id'] == 1): ?>
+                <?php if (esSuperusuario()): ?>
                     <td><span class="tag-sucursal"><?= htmlspecialchars($proyecto['sucursal_nombre']) ?></span></td>
                 <?php endif; ?>
 
                 <td>
                     <?php if (($proyecto['id_usuario'] == $_SESSION['usuario']['id']) || 
-                              ($_SESSION['usuario']['rol'] == ROL_GERENTE && $_SESSION['usuario']['sucursal_id'] == 1)): ?>
+                              ($_SESSION['usuario']['rol_id'] == 2 && $_SESSION['usuario']['sucursal_id'] == 1)): ?>
                         <form method="post" action="cambiar_estado.php">
                             <input type="hidden" name="id_proyecto" value="<?= $proyecto['id_proyecto'] ?>">
                             <select name="estado_id" onchange="this.form.submit()" class="estado-selector">
@@ -405,6 +426,10 @@ if ($fin_rango - $inicio_rango < $rango_paginas - 1) {
                         <span class="estado-selector"><?= htmlspecialchars($proyecto['estado']) ?></span>
                     <?php endif; ?>
                 </td>
+                <td style="text-align:right; color:#2c3e50;">
+                    Bs <?= number_format($proyecto['monto_total'], 2, ',', '.') ?>
+                </td>
+
                 <td style="text-align: center;">
                     <a href="ver_proyecto.php?id=<?= $proyecto['id_proyecto'] ?>&<?= http_build_query(array_filter(['sucursal' => $filtro_sucursal, 'usuario' => $filtro_usuario, 'estado' => $filtro_estado, 'buscar' => $busqueda, 'pagina' => $pagina_actual])) ?>" 
                        class="btn" style="padding: 5px 15px;">

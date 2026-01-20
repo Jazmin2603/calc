@@ -2,10 +2,7 @@
 include 'includes/config.php';
 include 'includes/auth.php';
 
-if (!isset($_SESSION['usuario'])) {
-    header("Location: index.php");
-    exit();
-}
+verificarPermiso("finanzas", "ver");
 
 $id_proyecto_financiero = isset($_GET['id']) ? intval($_GET['id']) : 0;
 

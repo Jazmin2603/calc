@@ -41,7 +41,7 @@ if (!$proyecto) {
     exit();
 }
 
-if ($_SESSION['usuario']['rol'] != ROL_GERENTE && $_SESSION['usuario']['id'] != $proyecto['id_usuario']) {
+if ($_SESSION['usuario']['rol_id'] != 2 && $_SESSION['usuario']['id'] != $proyecto['id_usuario']) {
     header("Location: proyectos.php?error=No autorizado");
     exit();
 }

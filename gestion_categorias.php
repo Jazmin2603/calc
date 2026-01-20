@@ -2,10 +2,7 @@
 include 'includes/config.php';
 include 'includes/auth.php';
 
-if (!isset($_SESSION['usuario']) || $_SESSION['usuario']['rol'] != ROL_GERENTE) {
-    header("Location: index.php?error=Acceso no autorizado");
-    exit();
-}
+verificarPermiso("categorias", "ver");
 
 // Obtener todas las categorías y subcategorías
 $stmt = $conn->query("SELECT * FROM tipo_gasto ORDER BY nombre");
@@ -271,26 +268,28 @@ if (isset($_GET['toggle_sub'])) {
         
         <!-- Tab Categorías -->
         <div id="tab-categorias" class="tab-content active">
-            <div class="form-section">
-                <h2>Nueva Categoría Principal</h2>
-                <form method="post">
-                    <div class="form-row">
-                        <div class="form-grouplo">
-                            <label for="nombre_tipo">Nombre de la Categoría: *</label>
-                            <input type="text" id="nombre_tipo" name="nombre_tipo" required 
-                                   placeholder="Ej: Transporte, Servicios, etc.">
+            <?php if(tienePermiso("categorias", "crear")):?>
+                <div class="form-section">
+                    <h2>Nueva Categoría</h2>
+                    <form method="post">
+                        <div class="form-row">
+                            <div class="form-grouplo">
+                                <label for="nombre_tipo">Nombre de la Categoría: *</label>
+                                <input type="text" id="nombre_tipo" name="nombre_tipo" required 
+                                    placeholder="Ej: Transporte, Servicios, etc.">
+                            </div>
+                            <div class="form-grouplo">
+                                <label for="descripcion_tipo">Descripción (opcional):</label>
+                                <input type="text" id="descripcion_tipo" name="descripcion_tipo"
+                                    placeholder="Breve descripción de la categoría">
+                            </div>
                         </div>
-                        <div class="form-grouplo">
-                            <label for="descripcion_tipo">Descripción (opcional):</label>
-                            <input type="text" id="descripcion_tipo" name="descripcion_tipo"
-                                   placeholder="Breve descripción de la categoría">
-                        </div>
-                    </div>
-                    <button type="submit" name="crear_tipo" class="btn">Crear Categoría</button>
-                    <br>
-                    <br>
-                </form>
-            </div>
+                        <button type="submit" name="crear_tipo" class="btn">Crear Categoría</button>
+                        <br>
+                        <br>
+                    </form>
+                </div>
+            <?php endif;?>
             
             <div class="form-section">
                 <h2>Categorías Existentes</h2>
@@ -318,13 +317,15 @@ if (isset($_GET['toggle_sub'])) {
                                             <?= $count_subs ?> subcategoría(s)
                                         </small>
                                     </div>
-                                    <div class="actions">
-                                        <a href="?eliminar_tipo=<?= $tipo['id'] ?>" 
-                                        class="btn-delete btn-small"
-                                        onclick="return confirm('¿Eliminar esta categoría? Solo se puede eliminar si no tiene subcategorías.')">
-                                            Eliminar
-                                        </a>
-                                    </div>
+                                    <?php if(tienePermiso("categorias", "eliminar")):?>
+                                        <div class="actions">
+                                            <a href="?eliminar_tipo=<?= $tipo['id'] ?>" 
+                                            class="btn-delete btn-small"
+                                            onclick="return confirm('¿Eliminar esta categoría? Solo se puede eliminar si no tiene subcategorías.')">
+                                                Eliminar
+                                            </a>
+                                        </div>
+                                    <?php endif;?>
                                 </div>
                             </div>
                         <?php endforeach; ?>
@@ -335,39 +336,41 @@ if (isset($_GET['toggle_sub'])) {
         
         <!-- Tab Subcategorías -->
         <div id="tab-subcategorias" class="tab-content">
-            <div class="form-section">
-                <h2>Nueva Subcategoría</h2>
-                <form method="post">
-                    <div class="form-row">
-                        <div class="form-grouplo">
-                            <label for="id_tipo_gasto">Categoría Principal: *</label>
-                            <select name="id_tipo_gasto" id="id_tipo_gasto" required>
-                                <option value="">Seleccione una categoría</option>
-                                <?php foreach ($tipos_gasto as $tipo): ?>
-                                    <option value="<?= $tipo['id'] ?>">
-                                        <?= htmlspecialchars($tipo['nombre']) ?>
-                                    </option>
-                                <?php endforeach; ?>
-                            </select>
+            <?php if(tienePermiso("categorias", "crear")) :?>
+                <div class="form-section">
+                    <h2>Nueva Subcategoría</h2>
+                    <form method="post">
+                        <div class="form-row">
+                            <div class="form-grouplo">
+                                <label for="id_tipo_gasto">Categoría Principal: *</label>
+                                <select name="id_tipo_gasto" id="id_tipo_gasto" required>
+                                    <option value="">Seleccione una categoría</option>
+                                    <?php foreach ($tipos_gasto as $tipo): ?>
+                                        <option value="<?= $tipo['id'] ?>">
+                                            <?= htmlspecialchars($tipo['nombre']) ?>
+                                        </option>
+                                    <?php endforeach; ?>
+                                </select>
+                            </div>
+                            <div class="form-grouplo">
+                                <label for="nombre_sub">Nombre de la Subcategoría: *</label>
+                                <input type="text" id="nombre_sub" name="nombre_sub" required
+                                    placeholder="Ej: Terrestre, Aéreo, etc.">
+                            </div>
                         </div>
-                        <div class="form-grouplo">
-                            <label for="nombre_sub">Nombre de la Subcategoría: *</label>
-                            <input type="text" id="nombre_sub" name="nombre_sub" required
-                                   placeholder="Ej: Terrestre, Aéreo, etc.">
+                        <div class="form-row">
+                            <div class="form-grouplo">
+                                <label for="descripcion_sub">Descripción (opcional):</label>
+                                <input type="text" id="descripcion_sub" name="descripcion_sub"
+                                    placeholder="Breve descripción">
+                            </div>
                         </div>
-                    </div>
-                    <div class="form-row">
-                        <div class="form-grouplo">
-                            <label for="descripcion_sub">Descripción (opcional):</label>
-                            <input type="text" id="descripcion_sub" name="descripcion_sub"
-                                   placeholder="Breve descripción">
-                        </div>
-                    </div>
-                    <button type="submit" name="crear_sub" class="btn">Crear Subcategoría</button>
-                    <br>
-                    <br>
-                </form>
-            </div>
+                        <button type="submit" name="crear_sub" class="btn">Crear Subcategoría</button>
+                        <br>
+                        <br>
+                    </form>
+                </div>
+            <?php endif;?>
             
             <div class="form-section">
                 <h2>Subcategorías por Categoría</h2>
@@ -398,16 +401,19 @@ if (isset($_GET['toggle_sub'])) {
                                                 <?php endif; ?>
                                             </div>
                                             <div class="actions">
-                                                
-                                                <a href="?toggle_sub=<?= $sub['id'] ?>" 
-                                                   class="btn btn-small">
-                                                    <?= $sub['activo'] ? 'Desactivar' : 'Activar' ?>
-                                                </a>
-                                                <a href="?eliminar_sub=<?= $sub['id'] ?>" 
-                                                   class="btn-delete btn-small"
-                                                   onclick="return confirm('¿Eliminar esta subcategoría?')">
-                                                    Eliminar
-                                                </a>
+                                                <?php if(tienePermiso("categorias", "editar")): ?>
+                                                    <a href="?toggle_sub=<?= $sub['id'] ?>" 
+                                                    class="btn btn-small">
+                                                        <?= $sub['activo'] ? 'Desactivar' : 'Activar' ?>
+                                                    </a>
+                                                <?php endif; ?>
+                                                <?php if(tienePermiso("categorias", "eliminar")): ?>
+                                                    <a href="?eliminar_sub=<?= $sub['id'] ?>" 
+                                                    class="btn-delete btn-small"
+                                                    onclick="return confirm('¿Eliminar esta subcategoría?')">
+                                                        Eliminar
+                                                    </a>
+                                                <?php endif; ?>
                                             </div>
                                         </div>
                                     <?php endforeach; ?>

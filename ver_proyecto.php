@@ -16,7 +16,9 @@ if (!$proyecto) {
     exit();
 }
 
-if ($_SESSION['usuario']['rol'] != ROL_GERENTE && $_SESSION['usuario']['id'] != $proyecto['id_usuario']) {
+if (esGerente() 
+    && $_SESSION['usuario']['id'] != $proyecto['id_usuario'] 
+    && !esSuperusuario()) {
     header("Location: proyectos.php?error=No autorizado");
     exit();
 }
@@ -102,10 +104,10 @@ $params = array_filter([
 
                     <div class="maestro-col">
                         <label>Giro:</label>
-                        <input type="number" step="0.01" name="giro_exterior" value="<?= $proyecto['giro_exterior'] ?>" <?= ($_SESSION['usuario']['rol'] != ROL_GERENTE) ? 'readonly' : '' ?>>
+                        <input type="number" step="0.01" name="giro_exterior" value="<?= $proyecto['giro_exterior'] ?>" <?= ($_SESSION['usuario']['rol_id'] != 2) ? 'readonly' : '' ?>>
 
                         <label>TC Oficial:</label>
-                        <input type="number" step = "0.01" name="tc_oficial" value="<?= $proyecto['tc_oficial'] ?>" <?= ($_SESSION['usuario']['rol'] != ROL_GERENTE) ? 'readonly' : '' ?>>
+                        <input type="number" step = "0.01" name="tc_oficial" value="<?= $proyecto['tc_oficial'] ?>" <?= ($_SESSION['usuario']['rol_id'] != 2) ? 'readonly' : '' ?>>
 
                         <label>TC Paralelo Hoy:</label>
                         <input type="number" step="0.01" name="tc_paralelo_hoy" value="<?= $proyecto['tc_paralelo_hoy'] ?>">
@@ -118,7 +120,7 @@ $params = array_filter([
                     </div>
 
                     <div class="maestro-col">
-                        <?php if($_SESSION['usuario']['rol'] == ROL_GERENTE):?>
+                        <?php if($_SESSION['usuario']['rol_id'] == 2):?>
                             <label>IVA:</label>
                             <input type="number" step="0.01" name="iva" value="<?= $proyecto['iva'] ?>">
 

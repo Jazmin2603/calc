@@ -2,10 +2,11 @@
 include 'includes/config.php';
 include 'includes/auth.php';
 
-if (!esGerente()) {
-    header("Location: dashboard.php?error=Acceso no autorizado");
-    exit();
-}
+verificarPermiso("datos", "ver");
+
+$puede_editar = tienePermiso("datos", "editar");
+$readonly = !$puede_editar ? 'readonly' : '';
+$disabled_class = !$puede_editar ? 'input-disabled' : '';
 
 // Obtener los últimos valores
 $stmt = $conn->query("SELECT * FROM datos_variables ORDER BY id DESC LIMIT 1");
@@ -13,6 +14,12 @@ $valores = $stmt->fetch(PDO::FETCH_ASSOC);
 
 // Procesar actualización
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
+    
+    if (!tienePermiso("datos", "editar")) {
+        header("Location: datos_variables.php?error=No tienes permiso para realizar esta acción");
+        exit();
+    }
+
     $iva = filter_input(INPUT_POST, 'iva', FILTER_VALIDATE_FLOAT);
     $it = filter_input(INPUT_POST, 'it', FILTER_VALIDATE_FLOAT);
     $giro_exterior = filter_input(INPUT_POST, 'giro_exterior', FILTER_VALIDATE_FLOAT);
@@ -145,19 +152,19 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 <h2>Impuestos</h2>
                 <div class="form-group">
                     <label for="iva">IVA (%):</label>
-                    <input type="number" step="0.01" id="iva" name="iva" value="<?= $valores['iva'] ?? 13.0 ?>" required>
+                    <input type="number" step="0.01" id="iva" name="iva" value="<?= $valores['iva'] ?? 13.0 ?>" <?= $readonly ?> class="<?= $disabled_class ?>" required>
                 </div>
                 <div class="form-group">
                     <label for="it">IT (%):</label>
-                    <input type="number" step="0.01" id="it" name="it" value="<?= $valores['it'] ?? 3.0 ?>" required>
+                    <input type="number" step="0.01" id="it" name="it" value="<?= $valores['it'] ?? 3.0 ?>" <?= $readonly ?> class="<?= $disabled_class ?>" required>
                 </div>
                 <div class="form-group">
                     <label for="giro_exterior">Giro (%):</label>
-                    <input type="number" step="0.01" id="giro_exterior" name="giro_exterior" value="<?= $valores['giro_exterior'] ?? 5.0 ?>" required>
+                    <input type="number" step="0.01" id="giro_exterior" name="giro_exterior" value="<?= $valores['giro_exterior'] ?? 5.0 ?>" <?= $readonly ?> class="<?= $disabled_class ?>" required>
                 </div>
                 <div class="form-group">
                     <label for="itf">ITF (%):</label>
-                    <input type="number" step="0.01" id="itf" name="itf" value="<?= $valores['itf'] ?? 0.3 ?>" required>
+                    <input type="number" step="0.01" id="itf" name="itf" value="<?= $valores['itf'] ?? 0.3 ?>" <?= $readonly ?> class="<?= $disabled_class ?>" required>
                 </div>
             </div>
 
@@ -165,19 +172,19 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 <h2>Tipos de Cambio</h2>
                 <div class="form-group">
                     <label for="tc_oficial">Oficial:</label>
-                    <input type="number" step="0.01" id="tc_oficial" name="tc_oficial" value="<?= $valores['tc_oficial'] ?? 6.96 ?>" required>
+                    <input type="number" step="0.01" id="tc_oficial" name="tc_oficial" value="<?= $valores['tc_oficial'] ?? 6.96 ?>" <?= $readonly ?> class="<?= $disabled_class ?>" required>
                 </div>
                 <div class="form-group">
                     <label for="tc_paralelo_hoy">Paralelo Hoy:</label>
-                    <input type="number" step="0.01" id="tc_paralelo_hoy" name="tc_paralelo_hoy" value="<?= $valores['tc_paralelo_hoy'] ?? 14.0 ?>" required>
+                    <input type="number" step="0.01" id="tc_paralelo_hoy" name="tc_paralelo_hoy" value="<?= $valores['tc_paralelo_hoy'] ?? 14.0 ?>" <?= $readonly ?> class="<?= $disabled_class ?>" required>
                 </div>
                 <div class="form-group">
                     <label for="tc_estimado30">Estimado 30 días:</label>
-                    <input type="number" step="0.01" id="tc_estimado30" name="tc_estimado30" value="<?= $valores['tc_estimado30'] ?? 15.0 ?>" required>
+                    <input type="number" step="0.01" id="tc_estimado30" name="tc_estimado30" value="<?= $valores['tc_estimado30'] ?? 15.0 ?>" <?= $readonly ?> class="<?= $disabled_class ?>" required>
                 </div>
                 <div class="form-group">
                     <label for="tc_estimado60">Estimado 60 días:</label>
-                    <input type="number" step="0.01" id="tc_estimado60" name="tc_estimado60" value="<?= $valores['tc_estimado60'] ?? 16.0 ?>" required>
+                    <input type="number" step="0.01" id="tc_estimado60" name="tc_estimado60" value="<?= $valores['tc_estimado60'] ?? 16.0 ?>" <?= $readonly ?> class="<?= $disabled_class ?>" required>
                 </div>
             </div>
 
@@ -185,17 +192,19 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 <h2>Otros Parámetros</h2>
                 <div class="form-group">
                     <label for="com_aduana">Comisión Aduana (%):</label>
-                    <input type="number" step="0.01" id="com_aduana" name="com_aduana" value="<?= $valores['com_aduana'] ?? 1.10 ?>" required>
+                    <input type="number" step="0.01" id="com_aduana" name="com_aduana" value="<?= $valores['com_aduana'] ?? 1.10 ?>" <?= $readonly ?> class="<?= $disabled_class ?>" required>
                 </div>
                 <div class="form-group">
                     <label for="pago_anticipado_DMC">Pago Anticipado DMC (%):</label>
-                    <input type="number" step="0.01" id="pago_anticipado_DMC" name="pago_anticipado_DMC" value="<?= $valores['pago_anticipado_DMC'] ?? 66.32 ?>" required>
+                    <input type="number" step="0.01" id="pago_anticipado_DMC" name="pago_anticipado_DMC" value="<?= $valores['pago_anticipado_DMC'] ?? 66.32 ?>" <?= $readonly ?> class="<?= $disabled_class ?>" required>
                 </div>
             </div>
 
-            <div class="btn-submit-container">
-                <button type="submit" class="btn-save">Guardar Todos los Cambios</button>
-            </div>
+            <?php if(tienePermiso("datos", "editar")): ?>
+                <div class="btn-submit-container">
+                    <button type="submit" class="btn-save">Guardar Todos los Cambios</button>
+                </div>
+            <?php endif;?>
         </form>
     </div>
 </body>

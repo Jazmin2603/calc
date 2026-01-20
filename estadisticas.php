@@ -3,10 +3,7 @@ include 'includes/config.php';
 include 'includes/auth.php';
 include 'includes/funciones.php';
 
-if (!isset($_SESSION['usuario']) || $_SESSION['usuario']['rol'] != ROL_GERENTE) {
-    header("Location: dashboard.php");
-    exit();
-}
+verificarPermiso("estadisticas", "ver");
 
 $gestion_seleccionada = isset($_GET['gestion']) ? (int)$_GET['gestion'] : (int)date('Y');
 

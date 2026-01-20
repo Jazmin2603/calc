@@ -2,13 +2,12 @@
 include 'includes/config.php';
 include 'includes/auth.php';
 
-if (!isset($_SESSION['usuario'])) {
-    header("Location: index.php?error=Debes iniciar sesión");
-    exit();
-}
+verificarPermiso("presupuestos", "crear");
+
+$puede_gestionar_roles = esSuperusuario();
 
 $sucursales = [];
-if ($_SESSION['usuario']['rol'] == ROL_GERENTE && $_SESSION['usuario']['sucursal_id'] == 1) {
+if ($puede_gestionar_roles) {
     $stmt = $conn->query("SELECT * FROM sucursales WHERE id != 1");
     $sucursales = $stmt->fetchAll(PDO::FETCH_ASSOC);
 }
@@ -98,14 +97,22 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             border-radius: 12px;
             box-shadow: 0 4px 15px rgba(0,0,0,0.05);
             margin-top: 20px;
-            border-top: 4px solid #27ae60; /* Verde para creación */
+            border-top: 4px solid #27ae60; 
         }
 
         .formulario-proyecto {
             display: grid;
-            grid-template-columns: 1fr 1fr; /* Dos columnas iguales */
+            grid-template-columns: 1fr 1fr; 
             gap: 20px;
             margin-bottom: 25px;
+        }
+
+        .row-3-columns {
+            display: grid;
+            grid-template-columns: repeat(3, 1fr); /* Tres columnas iguales */
+            gap: 20px;
+            grid-column: 1 / -1; 
+            margin: 10px 0;
         }
 
         .full-width {
@@ -131,9 +138,12 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             border-radius: 6px;
             font-size: 1rem;
             transition: border-color 0.3s ease;
+            width: 100%;
+            box-sizing: border-box;
         }
 
-        .form-group input:focus {
+        .form-group input:focus,
+        .form-group select:focus {
             border-color: #27ae60;
             outline: none;
             box-shadow: 0 0 5px rgba(39, 174, 96, 0.2);
@@ -141,6 +151,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
         .btn-submit-container {
             padding-top: 1px;
+            text-align: center;
         }
 
         .btn-crear {
@@ -186,29 +197,32 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                     <input type="text" id="cliente" name="cliente" placeholder="Nombre de la empresa o persona" required>
                 </div>
 
-                <div class="form-group">
-                    <label for="fecha_proyecto">Fecha del Proyecto:</label>
-                    <input type="date" id="fecha_proyecto" name="fecha_proyecto" required 
-                        value="<?= date('Y-m-d') ?>">
+                <div class="row-3-columns">
+                    <div class="form-group">
+                        <label for="fecha_proyecto">Fecha del Proyecto:</label>
+                        <input type="date" id="fecha_proyecto" name="fecha_proyecto" required 
+                            value="<?= date('Y-m-d') ?>">
+                    </div>
+
+                    <div class="form-group">
+                        <label for="fecha_cierre">Fecha de Cierre (Opcional):</label>
+                        <input type="date" id="fecha_cierre" name="fecha_cierre">
+                    </div>
+
+                    <?php if(esSuperusuario()): ?>
+                    <div class="form-group">
+                        <label for="sucursal">Asignar a Sucursal:</label>
+                        <select name="sucursal" id="selector">
+                            <?php foreach ($sucursales as $sucursal): ?>
+                            <option value="<?= $sucursal['id'] ?>">
+                                <?= htmlspecialchars($sucursal['nombre']) ?>
+                            </option>
+                            <?php endforeach; ?>
+                        </select>
+                    </div>
+                    <?php endif; ?>
                 </div>
 
-                <div class="form-group">
-                    <label for="fecha_cierre">Fecha de Cierre (Opcional):</label>
-                    <input type="date" id="fecha_cierre" name="fecha_cierre">
-                </div>
-
-                <?php if($_SESSION['usuario']['sucursal_id'] == 1): ?>
-                <div class="form-group full-width">
-                    <label for="sucursal">Asignar a Sucursal:</label>
-                    <select name="sucursal" id="venta-selector">
-                        <?php foreach ($sucursales as $sucursal): ?>
-                        <option value="<?= $sucursal['id'] ?>">
-                            <?= htmlspecialchars($sucursal['nombre']) ?>
-                        </option>
-                        <?php endforeach; ?>
-                    </select>
-                </div>
-                <?php endif; ?>
             </div>
 
             <div class="btn-submit-container">
@@ -219,4 +233,3 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     </div>
 </body>
 </html>
-

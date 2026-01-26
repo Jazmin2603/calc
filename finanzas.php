@@ -35,26 +35,43 @@ $query_base = "FROM proyecto_financiero pf
 
 // Filtros por rol
 if (esGerente() || esSuperusuario()) {
-    if (esSuperusuario()) {
+    if (puedeVerTodasSucursales()) {
         if ($filtro_sucursal && $filtro_sucursal != 1) {
             $conditions[] = "pf.sucursal_id = ?";
             $params[] = $filtro_sucursal;
+        } elseif (!$filtro_sucursal) {
+            if (!esSuperusuario()) {
+                $conditions[] = "pf.sucursal_id != 1";
+            }
         }
+        
         if ($filtro_usuario) {
             $conditions[] = "pf.id_usuario = ?";
             $params[] = $filtro_usuario;
         }
     } else {
-        $conditions[] = "pf.sucursal_id = ?";
-        $params[] = $_SESSION['usuario']['sucursal_id'];
+        if (esSuperusuario()) {
+            if ($filtro_sucursal && $filtro_sucursal != 1) {
+                $conditions[] = "pf.sucursal_id = ?";
+                $params[] = $filtro_sucursal;
+            }
+            if ($filtro_usuario) {
+                $conditions[] = "pf.id_usuario = ?";
+                $params[] = $filtro_usuario;
+            }
+        } else {
+            $conditions[] = "pf.sucursal_id = ?";
+            $params[] = $_SESSION['usuario']['sucursal_id'];
 
-        if ($filtro_usuario) {
-            $conditions[] = "pf.id_usuario = ?";
-            $params[] = $filtro_usuario;
+            if ($filtro_usuario) {
+                $conditions[] = "pf.id_usuario = ?";
+                $params[] = $filtro_usuario;
+            }
         }
     }
-} elseif ($_SESSION['usuario']['rol_id'] == 4) {
-    $conditions[] = "pf.id_usuario = ?";
+} else {
+    $conditions[] = "(pf.id_usuario = ? OR p.id_usuario = ?)";
+    $params[] = $_SESSION['usuario']['id'];
     $params[] = $_SESSION['usuario']['id'];
 }
 
@@ -99,8 +116,10 @@ $proyectos_financieros = $stmt->fetchAll(PDO::FETCH_ASSOC);
 // Obtener sucursales y usuarios para filtros
 $sucursales = [];
 $usuarios = [];
-if (esSuperusuario()) {
-    $stmt = $conn->query("SELECT * FROM sucursales WHERE id != 1 ORDER BY nombre");
+
+if (esSuperusuario() || puedeVerTodasSucursales()) {
+    $query_sucursales = "SELECT * FROM sucursales ORDER BY nombre";
+    $stmt = $conn->query($query_sucursales);
     $sucursales = $stmt->fetchAll(PDO::FETCH_ASSOC);
 
     if ($filtro_sucursal) {
@@ -117,7 +136,7 @@ if (esSuperusuario()) {
                              ORDER BY u.nombre");
     }
     $usuarios = $stmt->fetchAll(PDO::FETCH_ASSOC);
-} elseif (esGerente()) {
+} elseif (puedeVerTodasSucursales()) {
     $stmt = $conn->prepare("SELECT DISTINCT u.id, u.nombre 
                            FROM usuarios u 
                            JOIN proyecto_financiero pf ON pf.id_usuario = u.id 
@@ -127,8 +146,8 @@ if (esSuperusuario()) {
     $usuarios = $stmt->fetchAll(PDO::FETCH_ASSOC);
 }
 
-// Obtener estados financieros
-$stmt = $conn->query("SELECT * FROM estado_finanzas ORDER BY estado");
+
+$stmt = $conn->query("SELECT * FROM estado_finanzas");
 $estados_finanzas = $stmt->fetchAll(PDO::FETCH_ASSOC);
 
 // Obtener proyectos ganados para el modal
@@ -140,7 +159,7 @@ if (tienePermiso("finanzas", "crear")) {
                      WHERE e.estado IN ('Ganado', 'Aprobado')
                      AND p.id_proyecto NOT IN (SELECT presupuesto_id FROM proyecto_financiero WHERE presupuesto_id IS NOT NULL)";
     
-    if ($_SESSION['usuario']['sucursal_id'] != 1) {
+    if ($_SESSION['usuario']['sucursal_id'] != 1 && !esSuperusuario()) {
         $query_ganados .= " AND p.sucursal_id = ?";
         $stmt = $conn->prepare($query_ganados . " ORDER BY p.numero_proyecto DESC");
         $stmt->execute([$_SESSION['usuario']['sucursal_id']]);
@@ -487,7 +506,7 @@ if ($fin_rango - $inicio_rango < $rango_paginas - 1) {
             <?php if (tienePermiso("finanzas", "crear")): ?>
                 <a href="#" onclick="mostrarModal(); return false;" class="btn">Nuevo Proyecto</a>
             <?php endif; ?>
-            <a href="dashboard.php" class="btn-back">Volver al Dashboard</a>
+            <a href="dashboard.php" class="btn secondary">Volver al Dashboard</a>
         </div>
     </header>
 
@@ -498,13 +517,13 @@ if ($fin_rango - $inicio_rango < $rango_paginas - 1) {
             <p>¿Cómo deseas crear el proyecto financiero?</p>
             
             <div class="modal-buttons">
-                <button type="button" onclick="seleccionarTipo('con_proyecto')" class="btn-modal btn-primary">
+                <button type="button" onclick="seleccionarTipo('con_proyecto')" class="btn">
                     Con Proyecto Existente
                 </button>
-                <button type="button" onclick="seleccionarTipo('sin_proyecto')" class="btn-modal btn-secondary">
+                <button type="button" onclick="seleccionarTipo('sin_proyecto')" class="btn ghost">
                     Sin Proyecto
                 </button>
-                <button type="button" onclick="cerrarModal()" class="btn-modal">Cancelar</button>
+                <button type="button" onclick="cerrarModal()" class="btn secondary">Cancelar</button>
             </div>
 
             <div id="formConProyecto" class="hidden">
@@ -547,10 +566,11 @@ if ($fin_rango - $inicio_rango < $rango_paginas - 1) {
     <div class="filtros-container">
         <form method="get" class="filtro-form">
             <div class="filtros-izquierda">
-                <?php if (esSuperusuario()): ?>
+                <?php if (esSuperusuario() || puedeVerTodasSucursales()): ?>
                     <select name="sucursal" onchange="this.form.submit()">
                         <option value="">Todas las sucursales</option>
                         <?php foreach ($sucursales as $sucursal): ?>
+                            <?php if ($sucursal['id'] == 1) continue;?>
                             <option value="<?= $sucursal['id'] ?>" <?= $filtro_sucursal == $sucursal['id'] ? 'selected' : '' ?>>
                                 <?= htmlspecialchars($sucursal['nombre']) ?>
                             </option>
@@ -558,7 +578,7 @@ if ($fin_rango - $inicio_rango < $rango_paginas - 1) {
                     </select>
                 <?php endif; ?>
 
-                <?php if ($_SESSION['usuario']['rol_id'] == 2 || esSuperusuario()): ?>
+                <?php if (esSuperusuario() || puedeVerTodasSucursales()): ?>
                     <select name="usuario" onchange="this.form.submit()">
                         <option value="">Todos los usuarios</option>
                         <?php foreach ($usuarios as $usuario): ?>
@@ -568,7 +588,6 @@ if ($fin_rango - $inicio_rango < $rango_paginas - 1) {
                         <?php endforeach; ?>
                     </select>
                 <?php endif; ?>
-
             </div>
 
             <div class="filtro-derecha">
@@ -619,7 +638,24 @@ if ($fin_rango - $inicio_rango < $rango_paginas - 1) {
                             <td><span class="tag-sucursal"><?= htmlspecialchars($proyecto['sucursal_nombre']) ?></span></td>
                         <?php endif; ?>
                         <td>
-                            <span class="estado-selector"><?= htmlspecialchars($proyecto['estado_financiero']) ?></span>
+                            <?php if (($proyecto['id_usuario'] == $_SESSION['usuario']['id']) || esSuperusuario() || puedeVerTodasSucursales()): ?>
+                                <?php if($proyecto['estado_id'] != 3): ?>
+                                    <form method="post" action="cambiar_estadoFin.php" class="form-estado">
+                                        <input type="hidden" name="id_proyecto" value="<?= $proyecto['id'] ?>">
+                                        <select name="estado_id" onchange="this.form.submit()" class="estado-selector">
+                                            <?php foreach ($estados_finanzas as $estado): ?>
+                                                <option value="<?= $estado['id'] ?>" <?= $estado['id'] == $proyecto['estado_id'] ? 'selected' : '' ?>>
+                                                    <?= htmlspecialchars($estado['estado']) ?>
+                                                </option>
+                                            <?php endforeach; ?>
+                                        </select>
+                                    </form>
+                                <?php else:?>
+                                    <span class="estado-selector"><?= htmlspecialchars($proyecto['estado_financiero']) ?></span>
+                                <?php endif; ?>
+                            <?php else: ?>
+                                <span class="estado-selector"><?= htmlspecialchars($proyecto['estado_financiero']) ?></span>
+                            <?php endif; ?>
                         </td>
                         <td>
                             <a href="proyecto_financiero.php?id=<?= $proyecto['id'] ?>" class="btn" style="padding: 5px 15px;">Abrir</a>
@@ -665,6 +701,17 @@ if ($fin_rango - $inicio_rango < $rango_paginas - 1) {
 
 <script>
 let proyectoSeleccionado = null;
+
+function verificarEstado(selectElement) {
+    const nuevoEstado = selectElement.options[selectElement.selectedIndex].text;
+    
+    if (!confirm("¿Estás seguro de cambiar el estado a " + nuevoEstado + "?")) {
+            location.reload();
+            return;
+        }
+    
+    selectElement.form.submit();
+}
 
 function mostrarModal() {
     document.getElementById('modalNuevoProyecto').style.display = 'block';

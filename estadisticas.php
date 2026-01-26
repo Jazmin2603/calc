@@ -45,6 +45,7 @@ foreach ($proyectosPorMes as $dato) {
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Estadísticas Gerenciales</title>
     <link rel="icon" type="image/jpg" href="assets/icono.jpg">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
     <link rel="stylesheet" href="estadisticas.css">
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
 </head>
@@ -105,7 +106,7 @@ foreach ($proyectosPorMes as $dato) {
 
             <!-- Top vendedores -->
             <div class="chart-container">
-                <h3>Top 5 Vendedores</h3>
+                <h3><i class="fa-solid fa-trophy"></i>  Top 5 Vendedores</h3>
                 <div class="table-container">
                     <?php if (empty($usuariosTopVentas)): ?>
                         <div class="no-data-message">

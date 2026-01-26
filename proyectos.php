@@ -84,7 +84,7 @@ $stmt_count->execute($params);
 $total_resultados = $stmt_count->fetchColumn();
 $total_paginas = ceil($total_resultados / $por_pagina);
 
-$query = "SELECT p.*, u.nombre AS nombre_usuario, s.nombre AS sucursal_nombre, e.estado AS estado, COALESCE(SUM(i.total_usd_bo), 0) AS monto_total $query_base $where_clause
+$query = "SELECT p.*, u.nombre AS nombre_usuario, s.nombre AS sucursal_nombre, e.estado AS estado, COALESCE(SUM(i.total_hoy), 0) AS monto_total $query_base $where_clause
 GROUP BY p.id_proyecto, u.nombre, s.nombre, e.estado ORDER BY p.numero_proyecto DESC LIMIT $por_pagina OFFSET $offset ";
 
 $stmt = $conn->prepare($query);
@@ -124,6 +124,7 @@ if ($fin_rango - $inicio_rango < $rango_paginas - 1) {
     <meta charset="UTF-8">
     <title>Listado de Presupuestos</title>
     <link rel="icon" type="image/jpg" href="assets/icono.jpg">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
     <link rel="stylesheet" href="styles.css">
     <style>
     /* --- VARIABLES Y BASES --- */
@@ -304,7 +305,7 @@ if ($fin_rango - $inicio_rango < $rango_paginas - 1) {
         <h1>Presupuestos</h1>
         <div class="header-buttons">
             <a href="crear_proyecto.php" class="btn">Nuevo Presupuesto</a>
-            <a href="dashboard.php" class="btn-back">Volver al Dashboard</a>
+            <a href="dashboard.php" class="btn secondary">Volver al Dashboard</a>
         </div>
     </header>
 
@@ -386,7 +387,7 @@ if ($fin_rango - $inicio_rango < $rango_paginas - 1) {
                     <div style="font-weight: 600; color: #2c3e50;"><?= htmlspecialchars($proyecto['titulo']) ?></div>
                     <div style="font-size: 0.8rem; color: #7f8c8d;"><?= htmlspecialchars($proyecto['cliente']) ?></div>
                 </td>
-                <td><i class="far fa-calendar-alt"></i> <?= date('d/m/Y', strtotime($proyecto['fecha_proyecto'])) ?></td>
+                <td><?= date('d/m/Y', strtotime($proyecto['fecha_proyecto'])) ?></td>
                 <td><?= htmlspecialchars($proyecto['nombre_usuario']) ?></td>
                 
                 <?php if (esSuperusuario()): ?>
@@ -394,18 +395,21 @@ if ($fin_rango - $inicio_rango < $rango_paginas - 1) {
                 <?php endif; ?>
 
                 <td>
-                    <?php if (($proyecto['id_usuario'] == $_SESSION['usuario']['id']) || 
-                              esSuperusuario()): ?>
-                        <form method="post" action="cambiar_estado.php">
-                            <input type="hidden" name="id_proyecto" value="<?= $proyecto['id_proyecto'] ?>">
-                            <select name="estado_id" onchange="verificarEstado(this)" class="estado-selector">
-                                <?php foreach ($estados as $estado): ?>
-                                    <option value="<?= $estado['id'] ?>" <?= $estado['estado'] == $proyecto['estado'] ? 'selected' : '' ?>>
-                                        <?= htmlspecialchars($estado['estado']) ?>
-                                    </option>
-                                <?php endforeach; ?>
-                            </select>
-                        </form>
+                    <?php if (($proyecto['id_usuario'] == $_SESSION['usuario']['id']) || esSuperusuario()): ?>
+                        <?php if($proyecto['estado_id'] != 2): ?>
+                            <form method="post" action="cambiar_estado.php">
+                                <input type="hidden" name="id_proyecto" value="<?= $proyecto['id_proyecto'] ?>">
+                                <select name="estado_id" onchange="verificarEstado(this)" class="estado-selector">
+                                    <?php foreach ($estados as $estado): ?>
+                                        <option value="<?= $estado['id'] ?>" <?= $estado['estado'] == $proyecto['estado'] ? 'selected' : '' ?>>
+                                            <?= htmlspecialchars($estado['estado']) ?>
+                                        </option>
+                                    <?php endforeach; ?>
+                                </select>
+                            </form>
+                        <?php else:?>
+                            <span class="estado-selector"><?= htmlspecialchars($proyecto['estado']) ?></span>
+                        <?php endif; ?>
                     <?php else: ?>
                         <span class="estado-selector"><?= htmlspecialchars($proyecto['estado']) ?></span>
                     <?php endif; ?>
@@ -476,6 +480,7 @@ if ($fin_rango - $inicio_rango < $rango_paginas - 1) {
 
 <div id="modalGanado" style="display:none; position:fixed; z-index:1000; left:0; top:0; width:100%; height:100%; background:rgba(0,0,0,0.5); align-items:center; justify-content:center;">
     <div style="background:white; padding:30px; border-radius:12px; width:400px; box-shadow: 0 5px 20px rgba(0,0,0,0.2); text-align:center;">
+        <i class="fa-solid fa-award fa-2xl" style="color:#3b6de3;"></i>
         <h2 style="color:#34a44c;">¡Felicidades!</h2>
         <p style="margin-bottom:20px;">Anota el Monto Adjudicado para este proyecto.</p>
         
@@ -491,7 +496,7 @@ if ($fin_rango - $inicio_rango < $rango_paginas - 1) {
             
             <div style="display:flex; gap:10px; justify-content:center;">
                 <button type="submit" class="btn" style="background:#34a44c; color:white; border:none; margin-bottom:20px;">Guardar</button>
-                <button type="button" class="btn-back" onclick="cerrarModal()" style="border:none; margin-bottom:20px; margin-top:20px;">Cancelar</button>
+                <button type="button" class="btn secondary" style="border:none; margin-bottom:20px; margin-top:20px;" onclick="cerrarModal()">Cancelar</button>
             </div>
         </form>
     </div>

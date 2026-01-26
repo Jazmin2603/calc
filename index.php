@@ -22,9 +22,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         header('Location: cambiar_contrasena.php?obligatorio=1');
         exit();
     } elseif ($resultado === 'inactivo') {
-        $error = "Usuario inactivo";
+        $error = "   Usuario inactivo";
     } else {
-        $error = "Credenciales incorrectas";
+        $error = "   Credenciales incorrectas";
     }
 }
 ?>
@@ -35,13 +35,14 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Iniciar Sesión</title>
     <link rel="icon" type="image/jpg" href="assets/icono.jpg">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
     <link rel="stylesheet" href="styles.css">
 </head>
 <body>
     <div class="login-container">
         <h1>Iniciar Sesión</h1>
         <?php if(isset($error)): ?>
-            <div class="error"><?php echo htmlspecialchars($error); ?></div>
+            <div class="error"><i class="fa-solid fa-triangle-exclamation"></i>   <?php echo htmlspecialchars($error); ?></div>
         <?php endif; ?>
         <form method="post">
             <div class="form-login">

@@ -45,7 +45,33 @@ function verificarPrimerIngreso() {
 }
 
 function esGerente() {
-    return isset($_SESSION['usuario']) && $_SESSION['usuario']['rol_id'] == 2;
+    if (!isset($_SESSION['usuario'])) {
+        return false;
+    }
+    
+    global $conn;
+    
+    try {
+        $stmt = $conn->prepare("SELECT r.nombre as rol 
+                               FROM roles r 
+                               JOIN usuarios u ON r.id = u.rol_id 
+                               WHERE u.id = ? AND r.nombre LIKE '%gerente%'");
+        $stmt->execute([$_SESSION['usuario']['id']]);
+        $resultado = $stmt->fetch(PDO::FETCH_ASSOC);
+        
+        return !empty($resultado);
+    } catch (Exception $e) {
+        error_log("Error en esGerente(): " . $e->getMessage());
+        return false;
+    }
+}
+
+function esSucursalGeneral() {
+    return isset($_SESSION['usuario']) && $_SESSION['usuario']['sucursal_id'] == 1;
+}
+
+function puedeVerTodasSucursales() {
+    return esSuperusuario() || (esGerente() && esSucursalGeneral());
 }
 
 function cerrarSesion() {

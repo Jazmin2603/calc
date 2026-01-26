@@ -1,7 +1,4 @@
 <?php
-
-use function PHPSTORM_META\type;
-
 include 'includes/config.php';
 include 'includes/auth.php';
 
@@ -91,13 +88,28 @@ $params = array_filter([
         <input type="hidden" name="id_proyecto" value="<?= $proyecto['id_proyecto'] ?>">
 
         <div class="maestro-header">
-            <h2>Presupuesto - <?= $proyecto['numero_proyecto'] ?></h2>
+            <div class="header-title-section">
+                <h2>Presupuesto - <?= $proyecto['numero_proyecto'] ?></h2>
+                <?php if (strtolower($proyecto['nombre_estado']) == 'ganado'): ?>
+                    <div class="monto-adjudicado-header">
+                        <label style="color: white; font-weight: bold; margin-right: 8px;">Monto Adjudicado:</label>
+                        <input type="text"
+                            id="monto_adjudicado"
+                            name="monto_adjudicado"
+                            value="<?= number_format((float)$proyecto['monto_adjudicado'], 2, ',', '.') ?>"
+                            style="font-weight: bold; color: #1b5e20; padding: 4px 8px; border-radius: 4px; border: 1px solid #a5d6a7; background-color: #e8f5e9;">
+                    </div>
+                <?php endif; ?>
+            </div>
             <button type="submit" class="btn-back">Guardar Cambios</button>                      
         </div>
             
         <div class="maestro-content">
                 <div class="maestro-row">
                     <div class="maestro-col">
+                        <label>Titulo:</label>
+                        <input type="text" name="titulo" value="<?= $proyecto['titulo'] ?>">
+
                         <label>Fecha Inicio:</label>
                         <input type="date" name="fecha_proyecto" value="<?= $proyecto['fecha_proyecto'] ?>">
 
@@ -144,14 +156,7 @@ $params = array_filter([
                         <?php endif; ?>
                         <label>Pago anticipado a DMC:</label>
                         <input type="number" step="0.01" name="pago_anticipado_DMC" value="<?= $proyecto['pago_anticipado_DMC'] ?>">  
-                        <?php if (strtolower($proyecto['nombre_estado']) == 'ganado'): ?>
-                            <div style="margin-top: 15px; padding: 10px; border-radius: 8px; border: 1px solid #c8e6c9;">
-                                <label style="color: #2e7d32; font-weight: bold;">Monto Adjudicado:</label>
-                                <input type="number" step="0.01" name="monto_adjudicado" 
-                                    value="<?= $proyecto['monto_adjudicado'] ?>" 
-                                    style="font-weight: bold; color: #1b5e20;">
-                            </div>
-                        <?php endif; ?>
+                        
                     </div>
                 </div>
             </div>            
@@ -410,6 +415,12 @@ $params = array_filter([
 
     });
 
+     document.querySelector("form").addEventListener("submit", function () {
+        const input = document.getElementById("monto_adjudicado");
+        input.value = input.value
+            .replace(/\./g, '')   // quita miles
+            .replace(',', '.');   // coma → punto
+    });
     </script>
     <?php
         $archivoExcel = "/mnt/files/adjuntos_presupuestos/{$anio['anio']}/hoja_{$numero_proyecto}.xlsx";
@@ -443,7 +454,7 @@ $params = array_filter([
             ]
         ];
 
-        $token = JWT::encode($payload, 'IyawrmF4wLur9tJhehaieI4Vi6ALTsTO', 'HS256');
+        //$token = JWT::encode($payload, 'IyawrmF4wLur9tJhehaieI4Vi6ALTsTO', 'HS256');
     ?>
 
 
@@ -488,7 +499,6 @@ $params = array_filter([
         }
     });
 
-  
   </script>
 </body>
 </html>

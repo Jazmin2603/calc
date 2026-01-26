@@ -90,7 +90,7 @@ function obtenerUsuariosTopVentas($conn, $limite = 5, $gestion = null) {
     $stmt = $conn->prepare("
         SELECT u.id, u.nombre, u.username, s.nombre as sucursal, 
                COUNT(DISTINCT p.id_proyecto) as total_proyectos,
-               COALESCE(SUM(i.total_usd_bo), 0) as total_ventas
+               COALESCE(SUM(i.total_hoy), 0) as total_ventas
         FROM usuarios u
         INNER JOIN proyecto p ON u.id = p.id_usuario 
             AND YEAR(p.fecha_proyecto) = :gestion
@@ -115,7 +115,7 @@ function obtenerProyectosPorMes($conn, $gestion = null) {
     $stmt = $conn->prepare("
         SELECT MONTH(p.fecha_proyecto) as mes,
                COUNT(DISTINCT p.id_proyecto) as total_proyectos,
-               COALESCE(SUM(i.total_usd_bo), 0) as monto_total
+               COALESCE(SUM(i.total_hoy), 0) as monto_total
         FROM proyecto p
         LEFT JOIN items i ON p.id_proyecto = i.id_proyecto
         WHERE YEAR(p.fecha_proyecto) = :gestion
@@ -137,7 +137,7 @@ function obtenerEstadisticasSucursales($conn, $gestion = null) {
                COUNT(DISTINCT CASE WHEN e.estado = 'Abierto' THEN p.id_proyecto END) as abiertos,
                COUNT(DISTINCT CASE WHEN e.estado = 'Perdido' THEN p.id_proyecto END) as perdidos,
                COUNT(DISTINCT CASE WHEN e.estado = 'Cerrado' THEN p.id_proyecto END) as cancelados,
-               COALESCE(SUM(CASE WHEN e.estado = 'Ganado' THEN i.total_usd_bo ELSE 0 END), 0) as monto_total
+               COALESCE(SUM(CASE WHEN e.estado = 'Ganado' THEN i.total_hoy ELSE 0 END), 0) as monto_total
         FROM sucursales s
         LEFT JOIN proyecto p ON s.id = p.sucursal_id AND YEAR(p.fecha_proyecto) = :gestion
         LEFT JOIN items i ON p.id_proyecto = i.id_proyecto
@@ -157,7 +157,7 @@ function obtenerDistribucionEstados($conn, $gestion = null) {
     $stmt = $conn->prepare("
         SELECT e.id, e.estado, 
                COUNT(p.id_proyecto) as cantidad,
-               COALESCE(SUM(i.total_usd_bo), 0) as monto_total
+               COALESCE(SUM(i.total_hoy), 0) as monto_total
         FROM estados e
         LEFT JOIN proyecto p ON e.id = p.estado_id AND YEAR(p.fecha_proyecto) = :gestion
         LEFT JOIN items i ON p.id_proyecto = i.id_proyecto
@@ -175,7 +175,7 @@ function obtenerEstadisticasGenerales($conn, $gestion = null) {
     $stmt = $conn->prepare("
         SELECT 
             (SELECT COUNT(*) FROM proyecto WHERE YEAR(fecha_proyecto) = :g1) AS total_proyectos,
-            (SELECT COALESCE(SUM(i.total_usd_bo), 0)
+            (SELECT COALESCE(SUM(i.total_hoy), 0)
              FROM items i
              JOIN proyecto p ON i.id_proyecto = p.id_proyecto
              JOIN estados e ON e.id = p.estado_id
@@ -217,7 +217,7 @@ function obtenerProyectosRecientes($conn, $limite = 10, $gestion = null) {
     $stmt = $conn->prepare("
         SELECT p.id_proyecto, p.titulo, p.cliente, p.fecha_proyecto,
                u.nombre as usuario, s.nombre as sucursal, e.estado,
-               COALESCE(SUM(i.total_usd_bo), 0) as monto_total
+               COALESCE(SUM(i.total_hoy), 0) as monto_total
         FROM proyecto p
         LEFT JOIN usuarios u ON p.id_usuario = u.id
         LEFT JOIN sucursales s ON p.sucursal_id = s.id

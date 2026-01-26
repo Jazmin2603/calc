@@ -179,6 +179,7 @@ $puede_ver_permisos = esSuperusuario();
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Gestión de Usuarios</title>
     <link rel="icon" type="image/jpg" href="assets/icono.jpg">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
     <link rel="stylesheet" href="styles.css">
     <style>
     /* --- VARIABLES Y BASES --- */
@@ -422,7 +423,7 @@ $puede_ver_permisos = esSuperusuario();
         justify-content: center;
         gap: 6px;
         margin: 2px;
-        min-width: 90px;
+        min-width: 30px;
     }
 
     .btn-action i {
@@ -430,27 +431,23 @@ $puede_ver_permisos = esSuperusuario();
     }
 
     .btn-status-off {
-        background: linear-gradient(135deg, #f39c12, #e67e22);
+        background: #e67e22;
         color: white;
-        border: 1px solid #f39c12;
     }
 
     .btn-status-on {
-        background: linear-gradient(135deg, #2ecc71, #27ae60);
+        background: #27ae60;
         color: white;
-        border: 1px solid #2ecc71;
     }
 
     .btn-reset {
-        background: linear-gradient(135deg, #3498db, #2980b9);
+        background: #2980b9;
         color: white;
-        border: 1px solid #3498db;
     }
 
     .btn-delete {
-        background: linear-gradient(135deg, #e74c3c, #c0392b);
+        background: #c0392b;
         color: white;
-        border: 1px solid #e74c3c;
     }
 
     .btn-permisos {
@@ -606,7 +603,7 @@ $puede_ver_permisos = esSuperusuario();
             <img src="assets/logo.png" class="logo">
             <h1>Gestión de Usuarios</h1>
             <div class="header-buttons">
-                <a href="dashboard.php" class="btn-back">Volver al Dashboard</a>
+                <a href="dashboard.php" class="btn secondary">Volver al Dashboard</a>
             </div>
         </header>
         
@@ -630,19 +627,19 @@ $puede_ver_permisos = esSuperusuario();
         
         <?php if ($puede_crear): ?>
         <div class="form-section">
-            <h2><i class="fas fa-user-plus"></i> Agregar Nuevo Usuario</h2>
+            <h2>Agregar Nuevo Usuario</h2>
             <form method="post">
                 <div class="form-row">
                     <div class="form-group">
-                        <label for="username"><i class="fas fa-user"></i> Usuario:</label>
+                        <label for="username">Usuario:</label>
                         <input type="text" id="username" name="username" placeholder="Ej: nombre.apellido" required>
                     </div>
                     <div class="form-group">
-                        <label for="password"><i class="fas fa-lock"></i> Contraseña:</label>
+                        <label for="password">Contraseña:</label>
                         <input type="password" id="password" name="password" required minlength="8" placeholder="Mínimo 8 caracteres">
                     </div>
                     <div class="form-group">
-                        <label for="rol_id"><i class="fas fa-user-tag"></i> Rol:</label>
+                        <label for="rol_id">Rol:</label>
                         <select name="rol_id" id="rol_id" required>
                             <option value="">Seleccione un rol...</option>
                             <?php foreach ($roles_disponibles as $rol): ?>
@@ -656,15 +653,15 @@ $puede_ver_permisos = esSuperusuario();
                 
                 <div class="form-row">
                     <div class="form-group">
-                        <label for="nombre"><i class="fas fa-id-card"></i> Nombre Completo:</label>
+                        <label for="nombre">Nombre Completo:</label>
                         <input type="text" id="nombre" name="nombre" placeholder="Nombre y Apellido" required>
                     </div>
                     <div class="form-group">
-                        <label for="email"><i class="fas fa-envelope"></i> Email:</label>
+                        <label for="email">Email:</label>
                         <input type="email" id="email" name="email" placeholder="correo@empresa.com" required>
                     </div>
                     <div class="form-group">
-                        <label for="sucursal"><i class="fas fa-building"></i> Sucursal:</label>
+                        <label for="sucursal">Sucursal:</label>
                         <select name="sucursal" id="sucursal" required>
                             <option value="">Seleccione una sucursal...</option>
                             <?php foreach ($sucursales as $sucursal): ?>
@@ -677,8 +674,8 @@ $puede_ver_permisos = esSuperusuario();
                 </div>
 
                 <div style="text-align: right; margin-top: 25px;">
-                    <button type="submit" name="agregar" class="btn" style="background: linear-gradient(135deg, #27ae60, #2ecc71); padding: 12px 30px; font-weight: 600; border: none;">
-                        <i class="fas fa-user-plus"></i> Crear Usuario
+                    <button type="submit" name="agregar" class="btn">
+                        Crear Usuario
                     </button>
                 </div>
             </form>
@@ -686,7 +683,7 @@ $puede_ver_permisos = esSuperusuario();
         <?php endif; ?>
         
         <div class="vendedores-list">
-            <h2><i class="fas fa-users"></i> Usuarios Registrados</h2>
+            <h2>Usuarios Registrados</h2>
             
             <?php if (empty($usuarios)): ?>
                 <div class="no-data">
@@ -749,13 +746,13 @@ $puede_ver_permisos = esSuperusuario();
                                    title="<?php echo $usuario['activo'] ? 
                                    'Desactivar usuario: El usuario no podrá iniciar sesión pero sus datos se conservan.' : 
                                    'Activar usuario: Permitir que el usuario pueda iniciar sesión nuevamente.'; ?>">
-                                    <?php echo $usuario['activo'] ? '<i class="fas fa-ban"></i> Desactivar' : '<i class="fas fa-check"></i> Activar'; ?>
+                                    <?php echo $usuario['activo'] ? '<i class="fas fa-ban"></i>' : '<i class="fas fa-check"></i>'; ?>
                                 </a>
 
                                 <button class="btn-action btn-reset" 
                                         onclick="abrirModal(<?php echo $usuario['id']; ?>)" 
                                         title="Resetear contraseña: Establece una nueva contraseña temporal. El usuario deberá cambiarla en su próximo inicio de sesión.">
-                                    <i class="fas fa-key"></i> Resetear
+                                    <i class="fas fa-key"></i>
                                 </button>
                             <?php endif; ?>
                             
@@ -764,7 +761,7 @@ $puede_ver_permisos = esSuperusuario();
                                    class="btn-action btn-delete" 
                                    onclick="return confirm('¿Eliminar permanentemente a <?= htmlspecialchars($usuario['nombre']) ?>? Esta acción no se puede deshacer.')"
                                    title="Eliminar usuario: Elimina permanentemente al usuario y todos sus datos del sistema.">
-                                    <i class="fas fa-trash"></i> Eliminar
+                                    <i class="fas fa-trash"></i>
                                 </a>
                             <?php endif; ?>
                             

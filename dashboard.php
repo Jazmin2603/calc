@@ -38,89 +38,99 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Dashboard - Sistema de Presupuestos</title>
     <link rel="icon" type="image/jpg" href="assets/icono.jpg">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
     <link rel="stylesheet" href="styles.css">
 </head>
 <body>
-    <div class="dashboard-container">
-        <header>
-            <img src="assets/logo.png" class="logo">
-            <h1>Bienvenido, <?php echo htmlspecialchars($usuario['nombre']); ?></h1>
-            <a href="logout.php" class="btn-logout">Cerrar Sesión</a>
-        </header>
-        
-        <div class="dashboard-content">
-            
-            <!-- Gestión de Usuarios y Roles (Solo Superusuarios) -->
-            <?php if(esSuperusuario()): ?>
-                <div class="card">
-                    <h2>Gestión de Usuarios y Permisos</h2>
-                    <p>Control total del sistema de seguridad</p>
-                    <a href="gestion_vendedores.php" class="btn">
-                        Ver Usuarios
-                    </a>
-                    <a href="gestion_usuarios.php" class="btn" style="background-color: #6e7f97ff;">Gestionar Roles</a>
-                </div>
-            <?php elseif($puede_gestionar_usuarios): ?>
-                <!-- Gerentes que no son superusuarios solo ven gestión básica -->
-                <div class="card">
-                    <h2>Gestión de Usuarios</h2>
-                    <p>Administrar usuarios del sistema.</p>
-                    <a href="gestion_vendedores.php" class="btn">Ver Usuarios</a>
-                </div>
-            <?php endif; ?>
+<div class="dashboard-container">
 
-            <!-- Estadísticas -->
-            <?php if($puede_ver_estadisticas): ?>
-                <div class="card">
-                    <h2>Estadísticas Gerenciales</h2>
-                    <p>Dashboard completo de métricas y análisis.</p>
-                    <a href="estadisticas.php" class="btn">Ver Estadísticas</a>
-                </div>
-            <?php endif; ?>
+<header> 
+    <img src="assets/logo.png" class="logo">
+    <h1>Bienvenido, <?php echo htmlspecialchars($usuario['nombre']); ?></h1> 
+    <a href="logout.php" class="btn-logout">Cerrar Sesión</a> 
+</header>
 
-            <!-- Proyectos Financieros -->
-            <?php if($puede_ver_finanzas): ?>
-                <div class="card">
-                    <h2>Proyectos Financieros</h2>
-                    <p>Administrar los proyectos financieros.</p>
-                    <a href="finanzas.php" class="btn">Ver proyectos</a>
-                    <?php if($puede_ver_categorias): ?>
-                        <a href="gestion_categorias.php" class="btn" style="background-color: #6e7f97ff;">Gestionar Categorías</a>
-                    <?php endif; ?>
-                </div>
-            <?php endif; ?>
+  <div class="dashboard-content">
 
-            <!-- Presupuestos -->
-            <?php if($puede_ver_presupuestos): ?>
-                <div class="card">
-                    <h2>Presupuestos</h2>
-                    <p>Administra presupuestos y sus items.</p>
-                    <a href="proyectos.php" class="btn">Ver Presupuestos</a>
-                    <?php if($puede_ver_datos): ?>
-                        <a href="datos_variables.php" class="btn" style="background-color: #6e7f97ff;">Datos Variables</a>
-                    <?php endif; ?>
-                </div>
+    <!-- KPIs -->
+    <?php if(tienePermiso("presupuestos", "crear")): ?>
+    <div class="kpi">
+        <h3><i class="fa-solid fa-chart-line"></i> Presupuestos Abiertos</h3>
+        <div class="num"><?= $cantidad_abiertos ?></div>
+        <small><?= number_format($total_abierto,2,'.',',') ?> Bs</small>
+      </div>
 
-                <div class="card resumen-card">
-                    <h2>Presupuestos Abiertos: <?= $cantidad_abiertos ?></h2>
-                    <p class="monto"><?= number_format($total_abierto, 2, '.', ',') ?> Bs</p>
-                </div>
+      <div class="kpi success" style="margin: 0px 0px 0px;">
+        <h3><i class="fa-solid fa-sack-dollar"></i> Presupuestos Ganados</h3>
+        <div class="num"><?= $cantidad_ganados ?></div>
+        <small><?= number_format($total_ganado,2,'.',',') ?> Bs</small>
+      </div>
 
-                <div class="card resumen-card">
-                    <h2>Presupuestos Ganados: <?= $cantidad_ganados ?></h2>
-                    <p class="monto"><?= number_format($total_ganado, 2, '.', ',') ?> Bs</p>
-                </div>
-            <?php endif; ?>
-
-            <!-- Mensaje si no tiene permisos -->
-            <?php if(!$puede_ver_finanzas && !$puede_ver_presupuestos && !$puede_ver_estadisticas && !$puede_gestionar_usuarios): ?>
-                <div class="card" style="background: #fff3cd; border-left: 4px solid #ffc107;">
-                    <h2>Sin permisos asignados</h2>
-                    <p>No tienes permisos para acceder a ningún módulo del sistema.</p>
-                    <p>Por favor, contacta al administrador para que te asigne los permisos necesarios.</p>
-                </div>
-            <?php endif; ?>
+      <div class="kpi">
+        <h3><i class="fa-solid fa-percent"></i> Conversión</h3>
+        <div class="num">
+          <?= $cantidad_abiertos>0 ? round(($cantidad_ganados/$cantidad_abiertos)*100) : 0 ?>%
         </div>
-    </div>
+      </div>
+    <?php endif; ?>
+
+    <?php if(esSuperusuario() || $puede_gestionar_usuarios): ?>
+      <div class="card">
+        <h2>Administración</h2>
+        <p class="desc">Control de usuarios, permisos y jerarquías</p>
+        <div class="actions">
+          <?php if($puede_gestionar_usuarios): ?>
+            <a href="gestion_vendedores.php" class="btn">Usuarios</a>
+          <?php endif; ?>
+          <?php if(esSuperusuario()): ?>
+            <a href="gestion_usuarios.php" class="btn secondary">Roles</a>
+            <a href="organigrama.php" class="btn ghost">Organigrama</a>
+          <?php endif; ?>
+        </div>
+      </div>
+      <?php endif; ?>
+
+      <?php if($puede_ver_estadisticas || $puede_ver_finanzas): ?>
+      <div class="card">
+        <h2>Dirección</h2>
+        <p class="desc">Métricas, finanzas y categorías</p>
+        <div class="actions">
+          <?php if($puede_ver_estadisticas): ?>
+            <a href="estadisticas.php" class="btn">Estadísticas</a>
+          <?php endif; ?>
+          <?php if($puede_ver_finanzas): ?>
+            <a href="finanzas.php" class="btn">Finanzas</a>
+          <?php endif; ?>
+          <?php if($puede_ver_categorias): ?>
+            <a href="gestion_categorias.php" class="btn secondary">Categorías</a>
+          <?php endif; ?>
+        </div>
+      </div>
+      <?php endif; ?>
+
+      <?php if($puede_ver_presupuestos): ?>
+      <div class="card">
+        <h2>Presupuestos</h2>
+        <p class="desc">Gestión de presupuestos y datos</p>
+        <div class="actions">
+          <a href="proyectos.php" class="btn">Presupuestos</a>
+          <?php if($puede_ver_datos): ?>
+            <a href="datos_variables.php" class="btn secondary">Datos</a>
+          <?php endif; ?>
+        </div>
+      </div>
+      <?php endif; ?>
+
+      <!-- SIN PERMISOS -->
+      <?php if(!$puede_ver_finanzas && !$puede_ver_presupuestos && !$puede_ver_estadisticas && !$puede_gestionar_usuarios): ?>
+      <div class="warn">
+        <h3>Sin permisos asignados</h3>
+        <p>Contacta al administrador.</p>
+      </div>
+      <?php endif; ?>
+
+  </div>
+</div>
 </body>
+
 </html>

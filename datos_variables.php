@@ -58,7 +58,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             <img src="assets/logo.png" class="logo">
             <h1>Configuración de Datos Variables</h1>
             <link rel="icon" type="image/jpg" href="assets/icono.jpg">
-            <a href="dashboard.php" class="btn-back">Volver al Dashboard</a>
+            <a href="dashboard.php" class="btn secondary">Volver al Dashboard</a>
             <style>
                 /* Contenedor de las tarjetas */
                 .datos-form {
@@ -74,7 +74,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                     padding: 20px;
                     border-radius: 12px;
                     box-shadow: 0 4px 15px rgba(0,0,0,0.05);
-                    border-top: 4px solid #2c3e50; /* Color distintivo arriba */
+                    border-top: 4px solid #2d8f3d;;
                 }
 
                 .form-section h2 {
@@ -87,7 +87,6 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                     align-items: center;
                 }
 
-                /* Ajuste de los inputs para que ocupen el ancho completo */
                 .form-group {
                     margin-bottom: 15px;
                     display: flex;
@@ -114,27 +113,10 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                     outline: none;
                 }
 
-                /* El botón de guardar centrado y grande abajo */
                 .btn-submit-container {
-                    grid-column: 1 / -1; /* Ocupa todo el ancho en el grid */
+                    grid-column: 1 / -1;
                     text-align: center;
                     margin-top: 20px;
-                }
-
-                .btn-save {
-                    padding: 12px 40px;
-                    background-color: #27ae60;
-                    color: white;
-                    border: none;
-                    border-radius: 8px;
-                    font-size: 1.1rem;
-                    font-weight: bold;
-                    cursor: pointer;
-                    transition: background 0.3s;
-                }
-
-                .btn-save:hover {
-                    background-color: #219150;
                 }
             </style>
         </header>
@@ -202,7 +184,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
             <?php if(tienePermiso("datos", "editar")): ?>
                 <div class="btn-submit-container">
-                    <button type="submit" class="btn-save">Guardar Todos los Cambios</button>
+                    <button type="submit" class="btn">Guardar Todos los Cambios</button>
                 </div>
             <?php endif;?>
         </form>

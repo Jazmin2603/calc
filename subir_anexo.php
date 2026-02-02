@@ -14,8 +14,8 @@ try {
     $tipo_gasto = $_POST['tipo_gasto'] ?? ''; 
     $id_gasto = intval($_POST['id_gasto'] ?? 0);
 
-    if (!$id_proyecto) {
-        throw new Exception('ID de proyecto no válido');
+    if (!$id_proyecto || !$id_gasto) {
+        throw new Exception('ID de proyecto o gasto no válido');
     }
 
     // Obtener el número de proyecto financiero
@@ -53,7 +53,6 @@ try {
         throw new Exception("No se puede escribir en: $carpeta_proyecto");
     }
 
-
     // Validar archivo
     if (!isset($_FILES['archivo']) || $_FILES['archivo']['error'] !== UPLOAD_ERR_OK) {
         throw new Exception('Error al subir el archivo');
@@ -83,16 +82,16 @@ try {
         throw new Exception("move_uploaded_file falló");
     }
 
-
     $url_archivo = "adjuntos_finanzas/{$anio}/proyecto_{$id_proyecto}/{$nombre_archivo}";
 
+    // 🔴 CORRECCIÓN: Usar "id" en lugar de "id_proyecto" en el WHERE
     if ($tipo_gasto === 'exterior') {
         $stmt = $conn->prepare("UPDATE gastos_exterior SET anexos = 
             CASE 
                 WHEN anexos IS NULL OR anexos = '' THEN ?
                 ELSE CONCAT(anexos, ', ', ?)
             END
-            WHERE id_proyecto = ?");
+            WHERE id = ?");  // ⬅️ CAMBIO AQUÍ: id en lugar de id_proyecto
         $stmt->execute([$url_archivo, $url_archivo, $id_gasto]);
     } else {
         $stmt = $conn->prepare("UPDATE gastos_locales SET anexos = 
@@ -100,7 +99,7 @@ try {
                 WHEN anexos IS NULL OR anexos = '' THEN ?
                 ELSE CONCAT(anexos, ', ', ?)
             END
-            WHERE id_proyecto = ?");
+            WHERE id = ?");  // ⬅️ CAMBIO AQUÍ: id en lugar de id_proyecto
         $stmt->execute([$url_archivo, $url_archivo, $id_gasto]);
     }
 

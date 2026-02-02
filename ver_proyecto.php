@@ -78,7 +78,7 @@ $params = array_filter([
                 <img src="assets/logo.png" class="logo">
                 <h1><?= htmlspecialchars($proyecto['titulo']) ?></h1>
             </div>
-            <a href="proyectos.php?<?= http_build_query($params) ?>" class="btn-back">Volver a Presupuestos</a>
+            <a href="proyectos.php?<?= http_build_query($params) ?>" class="btn secondary">Volver a Presupuestos</a>
         </header>
     </div>
         
@@ -101,7 +101,7 @@ $params = array_filter([
                     </div>
                 <?php endif; ?>
             </div>
-            <button type="submit" class="btn-back">Guardar Cambios</button>                      
+            <button type="submit" class="btn secondary">Guardar Cambios</button>                      
         </div>
             
         <div class="maestro-content">

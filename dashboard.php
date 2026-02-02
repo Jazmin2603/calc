@@ -121,6 +121,16 @@
       </div>
       <?php endif; ?>
 
+      <?php if(esSuperusuario()): ?>
+      <div class="card">
+        <h2>Comisiones</h2>
+        <p class="desc">Control de comisiones y cuotas</p>
+        <div class="actions">
+          <a href="cuotas.php" class="btn">Cuotas</a>
+        </div>
+      </div>
+    <?php endif; ?>
+
       <!-- SIN PERMISOS -->
       <?php if(!$puede_ver_finanzas && !$puede_ver_presupuestos && !$puede_ver_estadisticas && !$puede_gestionar_usuarios): ?>
       <div class="warn">

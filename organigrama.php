@@ -48,6 +48,7 @@ $usuarios = $conn->query("SELECT id, nombre FROM usuarios WHERE activo = 1 ORDER
     <meta charset="UTF-8">
     <title>Organización - Gestión <?= htmlspecialchars($gestion_activa['nombre'] ?? '') ?></title>
     <link rel="icon" type="image/jpg" href="assets/icono.jpg">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
     <link rel="stylesheet" href="organigrama.css">
 </head>
 <body>
@@ -98,7 +99,8 @@ $usuarios = $conn->query("SELECT id, nombre FROM usuarios WHERE activo = 1 ORDER
     <div id="modalPuesto" class="modal">
         <div class="modal-content">
             <div class="modal-header">
-                <h2 id="modalTitulo">Asignar Puesto</h2>
+                <i class="fa-solid fa-user-tie"></i> 
+                <h2 id="modalTitulo"> Asignar Puesto</h2>
                 <button class="close" onclick="cerrarModalPuesto()">&times;</button>
             </div>
             <div class="modal-body">
@@ -244,10 +246,10 @@ $usuarios = $conn->query("SELECT id, nombre FROM usuarios WHERE activo = 1 ORDER
                         <td>${p.fecha_fin || '-'}</td>
                         <td class="acciones-cell">
                             <button class="btn-action btn-editar" onclick="editarPuesto(${p.id})">
-                                Editar
+                                <i class="fas fa-edit"></i>
                             </button>
                             <button class="btn-action btn-eliminar" onclick="eliminarPuesto(${p.id})">
-                                Eliminar
+                                <i class="fas fa-trash"></i>
                             </button>
                         </td>
                     </tr>

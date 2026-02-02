@@ -1,6 +1,7 @@
 <?php
 include 'includes/config.php';
 include 'includes/auth.php';
+include 'includes/calculos.php';
 
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $id_proyecto_financiero = intval($_POST['id_proyecto_financiero']);
@@ -11,14 +12,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $presupuesto_gasto_bs = floatval($_POST['presupuesto_gasto_bs']);
     $credito_fiscal_favor = floatval($_POST['credito_fiscal_favor']);
 
-    // Validar que el ID del proyecto sea válido
-    if ($id_proyecto_financiero <= 0) {
-        header("Location: finanzas.php?error=ID de proyecto inválido");
-        exit();
-    }
-
     try {
-        // Obtener datos variables (IVA e IT)
         $stmt = $conn->query("SELECT * FROM datos_variables ORDER BY id DESC LIMIT 1");
         $datos_variables = $stmt->fetch(PDO::FETCH_ASSOC);
         
@@ -26,12 +20,10 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             throw new Exception("No se encontraron datos variables (IVA/IT)");
         }
 
-        // Calcular impuestos
         $iva_it_total = ($datos_variables['iva']/100) + ($datos_variables['it']/100);
         $gastos_impuestos_prod = $venta_productos * $iva_it_total;
         $gastos_impuestos_serv = $venta_servicios * $iva_it_total;
 
-        // Verificar si existe el registro
         $stmt = $conn->prepare("SELECT COUNT(*) FROM datos_cabecera WHERE id_proyecto = ?");
         $stmt->execute([$id_proyecto_financiero]);
         $existe = $stmt->fetchColumn();
@@ -80,6 +72,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 $credito_fiscal_favor
             ]);
         }
+
+        recalcularCostosProyecto($conn, $id_proyecto_financiero);
 
         header("Location: proyecto_financiero.php?id=$id_proyecto_financiero&success=Datos%20guardados%20correctamente");
         exit();

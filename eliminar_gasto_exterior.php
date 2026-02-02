@@ -2,6 +2,7 @@
 <?php
 include 'includes/config.php';
 include 'includes/auth.php';
+include 'includes/calculos.php';
 
 header('Content-Type: application/json');
 
@@ -15,15 +16,29 @@ if (!isset($data['id'])) {
 $id = intval($data['id']);
 
 try {
-    $stmt = $conn->prepare("DELETE FROM gastos_exterior WHERE id = ?");
-    $success = $stmt->execute([$id]);
+    // 1. Obtener proyecto
+    $stmt = $conn->prepare("SELECT id_proyecto FROM gastos_exterior WHERE id = ?");
+    $stmt->execute([$id]);
+    $row = $stmt->fetch(PDO::FETCH_ASSOC);
 
-    if ($success) {
-        echo json_encode(['success' => true]);
-    } else {
-        echo json_encode(['success' => false, 'message' => 'No se pudo eliminar el gasto']);
+    if (!$row) {
+        echo json_encode(['success' => false, 'message' => 'Gasto no encontrado']);
+        exit;
     }
+
+    $id_proyecto = intval($row['id_proyecto']);
+
+    // 2. Borrar
+    $stmt = $conn->prepare("DELETE FROM gastos_exterior WHERE id = ?");
+    $stmt->execute([$id]);
+
+    // 3. Recalcular
+    recalcularCostosProyecto($conn, $id_proyecto);
+
+    echo json_encode(['success' => true]);
+
 } catch (PDOException $e) {
     echo json_encode(['success' => false, 'message' => 'Error: ' . $e->getMessage()]);
 }
+
 ?>

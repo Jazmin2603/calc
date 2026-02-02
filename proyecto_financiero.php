@@ -568,7 +568,7 @@ $utilidad_porcentaje = $total_ingreso > 0 ? ($utilidad_neta / $total_ingreso) * 
                                         <?= $gasto['tipo_gasto'] ?>
                                     </span>
                                 </td>
-                                <td><?= htmlspecialchars($gasto['categoria_id']) ?></td>
+                                <td><?= htmlspecialchars($gasto['categoria']) ?></td>
                                 <td><?= htmlspecialchars($gasto['descripcion']) ?></td>
                                 <td style="text-align: right;"><?= number_format($gasto['total_usd'], 2) ?></td>
                                 <td style="text-align: right;"><?= number_format($gasto['tipo_cambio'], 2) ?></td>
@@ -665,7 +665,7 @@ $utilidad_porcentaje = $total_ingreso > 0 ? ($utilidad_neta / $total_ingreso) * 
                                         <?= $gasto['tipo_gasto'] ?>
                                     </span>
                                 </td>
-                                <td><?= htmlspecialchars($gasto['categoria_id']) ?></td>
+                                <td><?= htmlspecialchars($gasto['categoria']) ?></td>
                                 <td><?= htmlspecialchars($gasto['descripcion']) ?></td>
                                 <td style="text-align: right;"><?= number_format($gasto['total_bs'], 2) ?></td>
                                 <td><?= strtoupper($gasto['facturado']) ?></td>
@@ -802,11 +802,11 @@ $utilidad_porcentaje = $total_ingreso > 0 ? ($utilidad_neta / $total_ingreso) * 
                                 <div class="form-group">
                                     <label>Total Bs</label>
                                     <input type="number" step="0.01" name="total_bs" id="total_bs" 
-                                           onchange="calcularNeto()">
+                                        onchange="calcularNeto()">
                                 </div>
                                 <div class="form-group">
                                     <label>Facturado</label>
-                                    <select name="facturado" id="facturado">
+                                    <select name="facturado" id="facturado" onchange="calcularNeto()">
                                         <option value="si">SI</option>
                                         <option value="no" selected>NO</option>
                                     </select>
@@ -814,7 +814,7 @@ $utilidad_porcentaje = $total_ingreso > 0 ? ($utilidad_neta / $total_ingreso) * 
                                 <div class="form-group">
                                     <label>Crédito Fiscal</label>
                                     <input type="number" step="0.01" name="credito_fiscal" id="credito_fiscal" 
-                                           value="0" onchange="calcularNeto()">
+                                        readonly class="readonly-field">
                                 </div>
                                 <div class="form-group">
                                     <label>Neto (Calculado)</label>
@@ -916,13 +916,20 @@ $utilidad_porcentaje = $total_ingreso > 0 ? ($utilidad_neta / $total_ingreso) * 
                 document.getElementById('campos_exterior').style.display = 'block';
                 document.getElementById('campos_locales').style.display = 'none';
             } else {
-                document.getElementById('total_bs').value = gasto.total_bs;
-                document.getElementById('facturado').value = gasto.facturado;
-                document.getElementById('credito_fiscal').value = gasto.credito_fiscal;
-                document.getElementById('neto').value = gasto.neto;
+                // Primero mostrar el bloque
                 document.getElementById('campos_exterior').style.display = 'none';
                 document.getElementById('campos_locales').style.display = 'block';
+
+                // Luego setear valores
+                document.getElementById('total_bs').value = gasto.total_bs;
+                document.getElementById('facturado').value = gasto.facturado;
+
+                calcularNeto();
+
+                document.getElementById('credito_fiscal').readOnly = true;
+                document.getElementById('neto').readOnly = true;
             }
+
             
             // Mostrar anexos existentes
             mostrarAnexosActuales();
@@ -955,9 +962,17 @@ $utilidad_porcentaje = $total_ingreso > 0 ? ($utilidad_neta / $total_ingreso) * 
 
         function calcularNeto() {
             const total = parseFloat(document.getElementById('total_bs').value) || 0;
-            const credito = parseFloat(document.getElementById('credito_fiscal').value) || 0;
+            const facturado = document.getElementById('facturado').value;
+
+            let credito = 0;
+            if (facturado === 'si') {
+                credito = total * 0.13;
+            }
+
+            document.getElementById('credito_fiscal').value = credito.toFixed(2);
             document.getElementById('neto').value = (total - credito).toFixed(2);
         }
+
 
         function mostrarAnexosActuales() {
             const container = document.getElementById('anexos_actuales');

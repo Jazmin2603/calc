@@ -19,16 +19,13 @@ try {
         throw new Exception('Datos incompletos');
     }
 
-    // Extraer el tipo (exterior o local) de la ruta
     $partes_ruta = explode('/', $archivo);
     if (count($partes_ruta) < 4) {
         throw new Exception('Ruta de archivo inválida');
     }
     
-    // La parte que contiene "exterior" o "local" está en la posición 3 (ej: "exterior_1_1769192463...")
     $nombre_archivo = $partes_ruta[3];
     
-    // Determinar si es exterior o local
     if (strpos($nombre_archivo, 'exterior') === 0) {
         $tipo = 'exterior';
     } elseif (strpos($nombre_archivo, 'local') === 0) {

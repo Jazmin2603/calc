@@ -121,7 +121,7 @@ if (isset($_GET['toggle_sub'])) {
         <header>
             <img src="assets/logo.png" class="logo">
             <h1>Gestión de Categorías de Gastos</h1>
-            <a href="dashboard.php" class="btn-back">Volver al Dashboard</a>
+            <a href="dashboard.php" class="btn secondary">Volver al Dashboard</a>
         </header>
         <style>
 

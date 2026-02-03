@@ -127,6 +127,7 @@
         <p class="desc">Control de comisiones y cuotas</p>
         <div class="actions">
           <a href="cuotas.php" class="btn">Cuotas</a>
+          <a href="resumen_costos.php" class="btn secondary">Comisiones</a>
         </div>
       </div>
     <?php endif; ?>

@@ -1,0 +1,313 @@
+:root {
+    --primary-color: #34a44c;
+    --secondary-color: #2c3e50;
+    --success: #27ae60;
+    --danger: #e74c3c;
+    --warning: #f39c12;
+    --bg-light: #f8f9fa;
+    --shadow: 0 4px 15px rgba(0,0,0,0.08);
+}
+
+.dashboard-container {
+    max-width: 90%;
+    margin: 0 auto;
+    padding: 20px;
+    background-color: var(--bg-light);
+    font-family: 'Arial', sans-serif;
+}
+
+header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 30px;
+    padding-bottom: 15px;
+    border-bottom: 2px solid var(--primary-color);
+    flex-wrap: wrap;
+    gap: 15px;
+}
+
+header h1 {
+    margin: 0;
+    color: var(--secondary-color);
+    font-size: 1.8rem;
+    font-weight: bold;
+}
+
+.logo {
+    height: 150px;
+    width: auto;
+    object-fit: contain;
+}
+
+.header-buttons {
+    display: flex;
+    gap: 10px;
+    align-items: center;
+}
+
+
+.filtros-container {
+    background: white;
+    padding: 20px;
+    border-radius: 12px;
+    margin-bottom: 25px;
+    box-shadow: var(--shadow);
+    display: flex;
+    gap: 15px;
+    align-items: center;
+    flex-wrap: wrap;
+}
+
+.filtros-container label {
+    font-size: 0.9rem;
+    font-weight: 600;
+    color: #555;
+    margin-right: 5px;
+}
+
+.filtros-container select {
+    padding: 10px 15px;
+    border: 1px solid #ddd;
+    border-radius: 8px;
+    font-size: 0.95rem;
+    background: white;
+    cursor: pointer;
+    transition: all 0.3s ease;
+    min-width: 200px;
+}
+
+.filtros-container input{
+    padding: 10px 15px;
+    border: 1px solid #ddd;
+    border-radius: 8px;
+    font-size: 0.95rem;
+    background: white;
+    transition: all 0.3s ease;
+    min-width: 200px;
+}
+
+.filtros-container select:focus {
+    outline: none;
+    border-color: var(--primary-color);
+    box-shadow: 0 0 0 3px rgba(52, 164, 76, 0.1);
+}
+
+/* ===================================
+   TABLA DE COSTOS
+   =================================== */
+.costos-table {
+    width: 100%;
+    border-collapse: separate;
+    border-spacing: 0 10px;
+    margin-top: 10px;
+    font-size: 14px;
+}
+
+.costos-table thead th {
+    background: var(--primary-color);
+    color: white;
+    text-transform: uppercase;
+    font-size: 0.75rem;
+    font-weight: 700;
+    padding: 15px 12px;
+    text-align: left;
+    position: sticky;
+    top: 0;
+    z-index: 10;
+}
+
+.costos-table thead th:first-child {
+    border-radius: 10px 0 0 10px;
+}
+
+.costos-table thead th:last-child {
+    border-radius: 0 10px 10px 0;
+}
+
+.costos-table tbody tr {
+    background-color: white;
+    transition: all 0.3s ease;
+    box-shadow: 0 2px 8px rgba(0,0,0,0.04);
+}
+
+.costos-table tbody tr:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 8px 25px rgba(0,0,0,0.1);
+}
+
+.costos-table td {
+    padding: 18px 12px;
+    border-top: 1px solid #f1f3f4;
+    border-bottom: 1px solid #f1f3f4;
+    vertical-align: middle;
+}
+
+.costos-table td:first-child {
+    border-left: 1px solid #f1f3f4;
+    border-radius: 10px 0 0 10px;
+    font-weight: bold;
+    color: var(--primary-color);
+}
+
+.costos-table td:last-child {
+    border-right: 1px solid #f1f3f4;
+    border-radius: 0 10px 10px 0;
+}
+
+/* Alineación de columnas numéricas */
+.costos-table .num-col {
+    text-align: right;
+    font-weight: 600;
+}
+
+/* Colores para valores positivos/negativos */
+.valor-positivo {
+    color: var(--success);
+}
+
+.valor-negativo {
+    color: var(--danger);
+}
+
+.porcentaje-badge {
+    display: inline-block;
+    padding: 4px 10px;
+    border-radius: 12px;
+    font-size: 0.8rem;
+    font-weight: 600;
+}
+
+.porcentaje-positivo {
+    background: #d4edda;
+    color: #155724;
+}
+
+.porcentaje-negativo {
+    background: #f8d7da;
+    color: #721c24;
+}
+
+/* ===================================
+   RESUMEN ESTADÍSTICAS
+   =================================== */
+.stats-container {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+    gap: 15px;
+    margin-bottom: 25px;
+}
+
+.stat-card {
+    background: white;
+    padding: 20px;
+    border-radius: 12px;
+    box-shadow: var(--shadow);
+    border-left: 4px solid var(--primary-color);
+}
+
+.stat-card h4 {
+    margin: 0 0 8px 0;
+    color: #6c757d;
+    font-size: 0.85rem;
+    text-transform: uppercase;
+}
+
+.stat-card .value {
+    font-size: 2rem;
+    font-weight: bold;
+    color: var(--secondary-color);
+}
+
+.stat-card.success {
+    border-left-color: var(--success);
+}
+
+.stat-card.danger {
+    border-left-color: var(--danger);
+}
+
+/* ===================================
+   SIN DATOS
+   =================================== */
+.no-data {
+    text-align: center;
+    padding: 60px 20px;
+    color: #7f8c8d;
+    font-size: 1.1rem;
+    background: white;
+    border-radius: 12px;
+    box-shadow: var(--shadow);
+}
+
+.no-data i {
+    font-size: 48px;
+    margin-bottom: 20px;
+    color: #dfe6e9;
+}
+
+/* ===================================
+   RESPONSIVE
+   =================================== */
+@media (max-width: 768px) {
+    .dashboard-container {
+        padding: 15px;
+    }
+    
+    header {
+        flex-direction: column;
+        align-items: flex-start;
+    }
+    
+    .filtros-container {
+        flex-direction: column;
+        align-items: stretch;
+    }
+    
+    .filtros-container select {
+        width: 100%;
+    }
+    
+    .costos-table {
+        font-size: 14px;
+    }
+    
+    .costos-table td {
+        padding: 12px 8px;
+    }
+    
+    .stats-container {
+        grid-template-columns: 1fr;
+    }
+}
+
+/* ===================================
+   BOTONES
+   =================================== */
+.btn {
+    display: inline-block;
+    padding: 10px 20px;
+    background: var(--primary-color);
+    color: white;
+    text-decoration: none;
+    border-radius: 8px;
+    transition: all 0.2s ease;
+    font-size: 14px;
+    border: none;
+    cursor: pointer;
+    font-weight: 600;
+}
+
+.btn:hover {
+    background-color: #2d8f42;
+    transform: translateY(-1px);
+    box-shadow: 0 4px 12px rgba(52, 164, 76, 0.3);
+}
+
+.btn-secondary {
+    background-color: #6c757d;
+}
+
+.btn-secondary:hover {
+    background-color: #5a6268;
+}

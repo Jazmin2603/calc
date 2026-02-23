@@ -116,7 +116,6 @@ $fin_rango = min($total_paginas, $inicio_rango + $rango_paginas - 1);
 if ($fin_rango - $inicio_rango < $rango_paginas - 1) {
     $inicio_rango = max(1, $fin_rango - $rango_paginas + 1);
 }
-
 ?>
 
 <!DOCTYPE html>

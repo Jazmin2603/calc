@@ -16,6 +16,18 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $titulo = trim($_POST['titulo']);
     $cliente = trim($_POST['cliente']);
     $fecha_proyecto = $_POST['fecha_proyecto'];
+
+    // Buscar gestión correspondiente a la fecha (sin importar si está activa)
+    $stmt = $conn->prepare("
+        SELECT id 
+        FROM gestiones 
+        WHERE fecha_inicio <= ?
+        AND fecha_fin >= ?
+        LIMIT 1
+    ");
+    $stmt->execute([$fecha_proyecto, $fecha_proyecto]);
+    $gestion_id = $stmt->fetchColumn();
+
     $fecha_cierre = !empty($_POST['fecha_cierre']) ? $_POST['fecha_cierre'] : null;
 
     if ($_SESSION['usuario']['sucursal_id'] == 1) {
@@ -24,62 +36,88 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $sucursal = $_SESSION['usuario']['sucursal_id'];
     }
 
-    
-    try {
-        $conn->beginTransaction();
+    if (!$gestion_id) {
+        $error = "No existe una gestión para la fecha seleccionada.";
+    } else {
+        try {
+            $conn->beginTransaction();
 
-        $stmt = $conn->prepare("SELECT numero_actual FROM contadores WHERE documento = ? AND anio = ? FOR UPDATE");
-        $stmt->execute(['presupuestos', 2026]);
-        $numero_proyecto = $stmt->fetchColumn();
+            // Obtener el año de la fecha del proyecto
+            $anio_proyecto = date('Y', strtotime($fecha_proyecto));
 
-        if ($numero_proyecto === false) {
-            throw new Exception("No se encontró el contador para presupuestos del 2026.");
+            // Buscar contador de presupuestos para ese año con bloqueo
+            $stmt = $conn->prepare("
+                SELECT id, numero_actual, numero_fin 
+                FROM contadores 
+                WHERE documento = 'presupuestos' 
+                AND anio = ?
+                FOR UPDATE
+            ");
+            $stmt->execute([$anio_proyecto]);
+            $contador = $stmt->fetch(PDO::FETCH_ASSOC);
+
+            if (!$contador) {
+                throw new Exception("No existe un contador de presupuestos para el año $anio_proyecto.");
+            }
+
+            if ($contador['numero_actual'] >= $contador['numero_fin']) {
+                throw new Exception("Se alcanzó el límite de presupuestos para el año $anio_proyecto.");
+            }
+
+            $nuevo_numero = $contador['numero_actual'] + 1;
+
+            // Actualizar contador
+            $stmt = $conn->prepare("
+                UPDATE contadores 
+                SET numero_actual = ? 
+                WHERE id = ?
+            ");
+            $stmt->execute([$nuevo_numero, $contador['id']]);
+
+            // Obtener los datos variables más recientes
+            $stmt = $conn->query("SELECT * FROM datos_variables ORDER BY id DESC LIMIT 1");
+            $datos_variables = $stmt->fetch(PDO::FETCH_ASSOC);
+
+            // Insertar el proyecto
+            $stmt = $conn->prepare("
+                INSERT INTO proyecto
+                    (id_usuario, fecha_proyecto, titulo, cliente, fecha_cierre,
+                     iva, it, giro_exterior, tc_oficial, tc_paralelo_hoy, tc_estimado30, com_aduana,
+                     itf, tc_estimado60, pago_anticipado_DMC, sucursal_id, numero_proyecto, gestion_id) 
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            ");
+
+            $stmt->execute([
+                $_SESSION['usuario']['id'],
+                $fecha_proyecto,
+                $titulo,
+                $cliente,
+                $fecha_cierre,
+                $datos_variables['iva'],
+                $datos_variables['it'],
+                $datos_variables['giro_exterior'],
+                $datos_variables['tc_oficial'],
+                $datos_variables['tc_paralelo_hoy'],
+                $datos_variables['tc_estimado30'],
+                $datos_variables['com_aduana'],
+                $datos_variables['itf'],
+                $datos_variables['tc_estimado60'],
+                $datos_variables['pago_anticipado_DMC'],
+                $sucursal,
+                $nuevo_numero,
+                $gestion_id
+            ]);
+
+            $id_proyecto = $conn->lastInsertId();
+            $conn->commit();
+
+            header("Location: ver_proyecto.php?id=$id_proyecto&success=Proyecto creado correctamente");
+            exit();
+
+        } catch (Exception $e) {
+            $conn->rollBack();
+            $error = "Error al crear proyecto: " . $e->getMessage();
         }
-
-        $nuevo_numero = $numero_proyecto + 1;
-
-        $stmt = $conn->prepare("UPDATE contadores SET numero_actual = ? WHERE documento = ? AND anio = ?");
-        $stmt->execute([$nuevo_numero, 'presupuestos', 2026]);
-
-        // Obtener los datos variables
-        $stmt = $conn->query("SELECT * FROM datos_variables ORDER BY id DESC LIMIT 1");
-        $datos_variables = $stmt->fetch(PDO::FETCH_ASSOC);
-        
-        $stmt = $conn->prepare("INSERT INTO proyecto
-                              (id_usuario, fecha_proyecto, titulo, cliente, fecha_cierre,
-                               iva, it, giro_exterior, tc_oficial, tc_paralelo_hoy, tc_estimado30, com_aduana,
-                               itf, tc_estimado60, pago_anticipado_DMC, sucursal_id, numero_proyecto) 
-                              VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)");
-        
-        $stmt->execute([
-            $_SESSION['usuario']['id'],
-            $fecha_proyecto,
-            $titulo,
-            $cliente,
-            $fecha_cierre,
-            $datos_variables['iva'],
-            $datos_variables['it'],
-            $datos_variables['giro_exterior'],
-            $datos_variables['tc_oficial'],
-            $datos_variables['tc_paralelo_hoy'],
-            $datos_variables['tc_estimado30'],
-            $datos_variables['com_aduana'],
-            $datos_variables['itf'],
-            $datos_variables['tc_estimado60'],
-            $datos_variables['pago_anticipado_DMC'],
-            $sucursal,
-            $nuevo_numero
-        
-        ]);
-        
-        $id_proyecto = $conn->lastInsertId();
-        $conn->commit();
-        
-        header("Location: ver_proyecto.php?id=$id_proyecto&success=Proyecto creado correctamente");
-        exit();
-    } catch (PDOException $e) {
-        $conn->rollBack();
-        $error = "Error al crear proyecto: " . $e->getMessage();
     }
 }
 ?>
@@ -89,8 +127,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     <meta charset="UTF-8">
     <title>Nuevo Proyecto</title>
     <link rel="stylesheet" href="styles.css">
+    <link rel="icon" type="image/jpg" href="assets/icono.jpg">
     <style>
-        /* Contenedor tipo Tarjeta */
         .form-section {
             background: #ffffff;
             padding: 30px;
@@ -109,7 +147,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
         .row-3-columns {
             display: grid;
-            grid-template-columns: repeat(3, 1fr); /* Tres columnas iguales */
+            grid-template-columns: repeat(3, 1fr);
             gap: 20px;
             grid-column: 1 / -1; 
             margin: 10px 0;
@@ -176,7 +214,6 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         <header>
             <img src="assets/logo.png" class="logo">
             <h1>Crear Nuevo Proyecto</h1>
-            <link rel="icon" type="image/jpg" href="assets/icono.jpg">
             <a href="proyectos.php" class="btn-back">Volver a Proyectos</a>
         </header>
         

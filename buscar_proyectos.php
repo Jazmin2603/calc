@@ -70,7 +70,7 @@ foreach ($proyectos as $proyecto):
             <div style="font-weight: 600; color: #2c3e50;"><?= htmlspecialchars($proyecto['titulo']) ?></div>
             <div style="font-size: 0.8rem; color: #7f8c8d;"><?= htmlspecialchars($proyecto['cliente']) ?></div>
         </td>
-        <td><i class="far fa-calendar-alt"></i> <?= date('d/m/Y', strtotime($proyecto['fecha_proyecto'])) ?></td>
+        <td> <?= date('d/m/Y', strtotime($proyecto['fecha_proyecto'])) ?></td>
         <td><?= htmlspecialchars($proyecto['nombre_usuario']) ?></td>
         
         <?php if (esSuperusuario()): ?>

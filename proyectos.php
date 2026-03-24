@@ -395,25 +395,40 @@ if ($fin_rango - $inicio_rango < $rango_paginas - 1) {
                 <?php endif; ?>
 
                 <td>
-                    <?php if (($proyecto['id_usuario'] == $_SESSION['usuario']['id']) || esSuperusuario()): ?>
-                        <?php if($proyecto['estado_id'] != 2): ?>
-                            <form method="post" action="cambiar_estado.php">
-                                <input type="hidden" name="id_proyecto" value="<?= $proyecto['id_proyecto'] ?>">
-                                <select name="estado_id" onchange="verificarEstado(this)" class="estado-selector">
-                                    <?php foreach ($estados as $estado): ?>
-                                        <option value="<?= $estado['id'] ?>" <?= $estado['estado'] == $proyecto['estado'] ? 'selected' : '' ?>>
-                                            <?= htmlspecialchars($estado['estado']) ?>
-                                        </option>
-                                    <?php endforeach; ?>
-                                </select>
-                            </form>
-                        <?php else:?>
+                    <?php 
+                        $esSuper = esSuperusuario();
+                        $esPropietario = $proyecto['id_usuario'] == $_SESSION['usuario']['id'];
+                        $esGanado = $proyecto['estado_id'] == 2;
+
+                        if ($esSuper || $esPropietario):
+                            
+                            // Si es superusuario puede siempre
+                            // Si no es super, solo puede cambiar si NO está ganado
+                            if ($esSuper || !$esGanado):
+                    ?>
+                                <form method="post" action="cambiar_estado.php">
+                                    <input type="hidden" name="id_proyecto" value="<?= $proyecto['id_proyecto'] ?>">
+                                    <select name="estado_id" onchange="verificarEstado(this)" class="estado-selector">
+                                        <?php foreach ($estados as $estado): ?>
+                                            <option value="<?= $estado['id'] ?>" 
+                                                <?= $estado['id'] == $proyecto['estado_id'] ? 'selected' : '' ?>>
+                                                <?= htmlspecialchars($estado['estado']) ?>
+                                            </option>
+                                        <?php endforeach; ?>
+                                    </select>
+                                </form>
+                    <?php
+                            else:
+                    ?>
+                                <span class="estado-selector"><?= htmlspecialchars($proyecto['estado']) ?></span>
+                    <?php
+                            endif;
+                        else:
+                    ?>
                             <span class="estado-selector"><?= htmlspecialchars($proyecto['estado']) ?></span>
-                        <?php endif; ?>
-                    <?php else: ?>
-                        <span class="estado-selector"><?= htmlspecialchars($proyecto['estado']) ?></span>
                     <?php endif; ?>
                 </td>
+
                 <?php 
                     $proyectoTotal = 0;
                     if($proyecto['monto_adjudicado'] == 0){

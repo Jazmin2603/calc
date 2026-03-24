@@ -133,6 +133,153 @@
       </div>
     <?php endif; ?>
 
+    <?php
+// ═══════════════════════════════════════════════════════════
+// SNIPPET — Tarjeta CRM en dashboard.php
+// Pegar dentro del grid de tarjetas del dashboard existente
+// ═══════════════════════════════════════════════════════════
+
+if (tienePermiso('oportunidades', 'ver')):
+
+    $uid_dash        = $_SESSION['usuario']['id'];
+    $es_manager_dash = esSuperusuario() || esGerente();
+
+    // Totales globales (activas)
+    $cond_dash = $es_manager_dash ? "" : "AND o.usuario_id = $uid_dash";
+    $stmt = $conn->query("
+        SELECT
+            COUNT(*)                                            AS total,
+            COALESCE(SUM(o.monto_estimado), 0)                 AS monto_total,
+            SUM(o.estado = 'Ganado')                           AS ganadas,
+            SUM(o.estado = 'Perdido')                          AS perdidas,
+            SUM(o.estado = 'Activo')                           AS activas
+        FROM oportunidades o
+        WHERE 1=1 $cond_dash
+    ");
+    $stats = $stmt->fetch(PDO::FETCH_ASSOC);
+
+    // Por etapa (activas)
+    $stmt = $conn->query("
+        SELECT e.nombre, e.probabilidad, COUNT(o.id) AS cnt,
+               COALESCE(SUM(o.monto_estimado), 0) AS monto
+        FROM oportunidad_etapas e
+        LEFT JOIN oportunidades o
+               ON o.etapa_id = e.id AND o.estado = 'Activo' $cond_dash
+        WHERE e.activo = 1
+        GROUP BY e.id
+        ORDER BY e.orden
+    ");
+    $por_etapa_dash = $stmt->fetchAll(PDO::FETCH_ASSOC);
+
+    // Próximas actividades (próximo paso dentro de 7 días)
+    $stmt = $conn->query("
+        SELECT a.tipo, a.proximo_paso, a.fecha_proximo_paso,
+               o.titulo AS op_titulo, o.id AS op_id,
+               u.nombre AS usuario
+        FROM oportunidad_actividades a
+        JOIN oportunidades o ON a.oportunidad_id = o.id
+        JOIN usuarios      u ON a.usuario_id     = u.id
+        WHERE a.fecha_proximo_paso BETWEEN NOW() AND DATE_ADD(NOW(), INTERVAL 7 DAY)
+          AND o.estado = 'Activo'
+          $cond_dash
+        ORDER BY a.fecha_proximo_paso ASC
+        LIMIT 5
+    ");
+    $proximas = $stmt->fetchAll(PDO::FETCH_ASSOC);
+
+    $colores_etapa = ['#475569','#3b82f6','#7c3aed','#d97706','#dc2626','#059669','#0891b2'];
+?>
+<!-- ─── TARJETA CRM / OPORTUNIDADES ─────────────────────── -->
+<div class="card" style="grid-column: span 2;">
+    <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:14px;">
+        <h3 style="font-size:.95rem;font-weight:700;display:flex;align-items:center;gap:7px;">
+            <i class="fas fa-chart-line" style="color:#16a34a;"></i>
+            Pipeline de Oportunidades
+        </h3>
+        <a href="oportunidades.php"
+           style="font-size:.78rem;color:#16a34a;text-decoration:none;font-weight:600;">
+            Ver Kanban <i class="fas fa-arrow-right"></i>
+        </a>
+    </div>
+
+    <!-- KPIs -->
+    <div style="display:grid;grid-template-columns:repeat(4,1fr);gap:10px;margin-bottom:16px;">
+        <?php
+        $kpis = [
+            ['Activas',   $stats['activas'],   '#2563eb', 'fa-spinner'],
+            ['Ganadas',   $stats['ganadas'],   '#16a34a', 'fa-trophy'],
+            ['Perdidas',  $stats['perdidas'],  '#dc2626', 'fa-times-circle'],
+            ['Monto total', 'Bs ' . number_format($stats['monto_total'], 0, ',', '.'), '#7c3aed', 'fa-coins'],
+        ];
+        foreach ($kpis as [$label, $valor, $color, $icon]): ?>
+        <div style="background:#f8fafc;border:1px solid #e2e8f0;border-radius:9px;padding:10px 12px;text-align:center;">
+            <i class="fas <?= $icon ?>" style="color:<?= $color ?>;font-size:1.1rem;margin-bottom:4px;display:block;"></i>
+            <div style="font-family:'JetBrains Mono',monospace;font-size:.95rem;font-weight:700;color:#0f172a;">
+                <?= $valor ?>
+            </div>
+            <div style="font-size:.7rem;color:#64748b;margin-top:2px;"><?= $label ?></div>
+        </div>
+        <?php endforeach; ?>
+    </div>
+
+    <!-- Mini pipeline -->
+    <div style="margin-bottom:14px;">
+        <div style="font-size:.72rem;font-weight:700;color:#64748b;text-transform:uppercase;letter-spacing:.4px;margin-bottom:7px;">
+            Estado del pipeline (oportunidades activas)
+        </div>
+        <div style="display:flex;gap:5px;flex-wrap:wrap;">
+            <?php foreach ($por_etapa_dash as $idx => $ep): if ($ep['cnt'] == 0) continue; ?>
+            <div style="background:<?= $colores_etapa[$idx % 7] ?>18;border:1px solid <?= $colores_etapa[$idx % 7] ?>44;
+                        border-radius:7px;padding:6px 10px;min-width:90px;flex:1;">
+                <div style="font-size:.68rem;font-weight:700;color:<?= $colores_etapa[$idx % 7] ?>;">
+                    <?= htmlspecialchars($ep['nombre']) ?>
+                </div>
+                <div style="font-family:'JetBrains Mono',monospace;font-size:.82rem;font-weight:700;color:#0f172a;">
+                    <?= $ep['cnt'] ?>
+                </div>
+                <div style="font-size:.68rem;color:#64748b;">
+                    Bs <?= number_format($ep['monto'], 0, ',', '.') ?>
+                </div>
+            </div>
+            <?php endforeach; ?>
+        </div>
+    </div>
+
+    <!-- Próximas actividades -->
+    <?php if (!empty($proximas)): ?>
+    <div>
+        <div style="font-size:.72rem;font-weight:700;color:#64748b;text-transform:uppercase;letter-spacing:.4px;margin-bottom:7px;">
+            <i class="fas fa-calendar-check" style="color:#d97706;margin-right:4px;"></i>
+            Próximas actividades (7 días)
+        </div>
+        <?php foreach ($proximas as $prox): ?>
+        <div style="display:flex;align-items:flex-start;gap:9px;padding:7px 0;border-bottom:1px solid #f1f5f9;">
+            <div style="min-width:70px;font-family:'JetBrains Mono',monospace;font-size:.7rem;color:#64748b;padding-top:1px;">
+                <?= date('d/m H:i', strtotime($prox['fecha_proximo_paso'])) ?>
+            </div>
+            <div style="flex:1;min-width:0;">
+                <div style="font-size:.8rem;font-weight:600;color:#0f172a;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">
+                    <?= htmlspecialchars($prox['op_titulo']) ?>
+                </div>
+                <?php if ($prox['proximo_paso']): ?>
+                <div style="font-size:.74rem;color:#475569;margin-top:1px;">
+                    <?= htmlspecialchars(mb_substr($prox['proximo_paso'], 0, 70)) ?>
+                </div>
+                <?php endif; ?>
+            </div>
+            <a href="oportunidades.php" onclick="event.preventDefault(); verOp(<?= $prox['op_id'] ?>)"
+               style="font-size:.7rem;color:#2563eb;white-space:nowrap;text-decoration:none;">
+                Ver <i class="fas fa-arrow-right"></i>
+            </a>
+        </div>
+        <?php endforeach; ?>
+    </div>
+    <?php endif; ?>
+</div>
+<!-- ─── FIN TARJETA CRM ──────────────────────────────────── -->
+
+<?php endif; ?>
+
       <!-- SIN PERMISOS -->
       <?php if(!$puede_ver_finanzas && !$puede_ver_presupuestos && !$puede_ver_estadisticas && !$puede_gestionar_usuarios): ?>
       <div class="warn">
@@ -140,6 +287,7 @@
         <p>Contacta al administrador.</p>
       </div>
       <?php endif; ?>
+
 
   </div>
 </div>

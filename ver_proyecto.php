@@ -13,7 +13,6 @@ $stmt = $conn->prepare($query);
 $stmt->execute([$id_proyecto]);
 $proyecto = $stmt->fetch(PDO::FETCH_ASSOC);
 
-
 if (!$proyecto) {
     header("Location: proyectos.php?error=Proyecto no encontrado");
     exit();
@@ -26,18 +25,11 @@ if (!esGerente()
     exit();
 }
 
-$numero_proyecto = $proyecto['numero_proyecto'];
+// ── Configurar retorno ─────────────────────────────────────
+$from = $_GET['from'] ?? 'proyectos';
+$pagina_retorno = in_array($from, ['proyectos', 'oportunidades']) ? $from : 'proyectos';
 
-$stmt = $conn->prepare("SELECT anio FROM contadores WHERE ? BETWEEN numero_inicio AND numero_fin AND documento = 'presupuestos'");
-$stmt->execute([$numero_proyecto]);
-$anio = $stmt->fetch(PDO::FETCH_ASSOC);
-
-
-$items = $conn->prepare("SELECT * FROM items WHERE id_proyecto = ? ORDER BY id_item");
-$items->execute([$id_proyecto]);
-$items = $items->fetchAll(PDO::FETCH_ASSOC);
-
-// Al inicio de ver_proyecto.php
+// Capturar parámetros de filtro (sin el 'from' ni 'id')
 $params = array_filter([
     'sucursal' => $_GET['sucursal'] ?? null,
     'usuario' => $_GET['usuario'] ?? null,
@@ -45,6 +37,23 @@ $params = array_filter([
     'buscar' => $_GET['buscar'] ?? null,
     'pagina' => $_GET['pagina'] ?? null
 ]);
+
+$query_string = !empty($params) ? '?' . http_build_query($params) : '';
+$url_retorno = $pagina_retorno . '.php' . $query_string;
+
+// Texto del botón según origen
+$texto_volver = $pagina_retorno === 'oportunidades' ? 'Volver a Oportunidades' : 'Volver a Presupuestos';
+
+// ── Resto de tu código ────────────────────────────────────
+$numero_proyecto = $proyecto['numero_proyecto'];
+
+$stmt = $conn->prepare("SELECT anio FROM contadores WHERE ? BETWEEN numero_inicio AND numero_fin AND documento = 'presupuestos'");
+$stmt->execute([$numero_proyecto]);
+$anio = $stmt->fetch(PDO::FETCH_ASSOC);
+
+$items = $conn->prepare("SELECT * FROM items WHERE id_proyecto = ? ORDER BY id_item");
+$items->execute([$id_proyecto]);
+$items = $items->fetchAll(PDO::FETCH_ASSOC);
 
 ?>
 
@@ -78,89 +87,93 @@ $params = array_filter([
                 <img src="assets/logo.png" class="logo">
                 <h1><?= htmlspecialchars($proyecto['titulo']) ?></h1>
             </div>
-            <a href="proyectos.php?<?= http_build_query($params) ?>" class="btn secondary">Volver a Presupuestos</a>
+            <a href="<?= $url_retorno ?>" class="btn secondary"><?= $texto_volver ?></a>
         </header>
     </div>
         
     <div>
         <div class="maestro">
-        <form action="guardar_proyecto.php" method="POST">
-        <input type="hidden" name="id_proyecto" value="<?= $proyecto['id_proyecto'] ?>">
+            <form action="guardar_proyecto.php" method="POST">
+                <input type="hidden" name="id_proyecto" value="<?= $proyecto['id_proyecto'] ?>">
+                <input type="hidden" name="from" value="<?= htmlspecialchars($from) ?>">
+                <?php foreach ($params as $key => $val): ?>
+                    <input type="hidden" name="retorno_<?= htmlspecialchars($key) ?>" value="<?= htmlspecialchars($val) ?>">
+                <?php endforeach; ?>
 
-        <div class="maestro-header">
-            <div class="header-title-section">
-                <h2>Presupuesto - <?= $proyecto['numero_proyecto'] ?></h2>
-                <?php if (strtolower($proyecto['nombre_estado']) == 'ganado'): ?>
-                    <div class="monto-adjudicado-header">
-                        <label style="color: white; font-weight: bold; margin-right: 8px;">Monto Adjudicado:</label>
-                        <input type="text"
-                            id="monto_adjudicado"
-                            name="monto_adjudicado"
-                            value="<?= number_format((float)$proyecto['monto_adjudicado'], 2, ',', '.') ?>"
-                            style="font-weight: bold; color: #1b5e20; padding: 4px 8px; border-radius: 4px; border: 1px solid #a5d6a7; background-color: #e8f5e9;">
-                    </div>
-                <?php endif; ?>
-            </div>
-            <button type="submit" class="btn secondary">Guardar Cambios</button>                      
-        </div>
-            
-        <div class="maestro-content">
-                <div class="maestro-row">
-                    <div class="maestro-col">
-                        <label>Titulo:</label>
-                        <input type="text" name="titulo" value="<?= $proyecto['titulo'] ?>">
-
-                        <label>Fecha Inicio:</label>
-                        <input type="date" name="fecha_proyecto" value="<?= $proyecto['fecha_proyecto'] ?>" <?= (esSuperusuario() || esGerente()) ? '' : 'readonly' ?>>
-
-                        <label>Cliente:</label>
-                        <input type="text" name="cliente" value="<?= htmlspecialchars($proyecto['cliente']) ?>">
-
-                        <label>Fecha Cierre:</label>
-                        <input type="date" name="fecha_cierre" value="<?= $proyecto['fecha_cierre'] ?>">
-
-                        <label>Creado por:</label>
-                        <input type="text" value="<?= htmlspecialchars($proyecto['nombre_usuario']) ?>" disabled>
-                    </div>
-
-                    <div class="maestro-col">
-                        <label>Giro:</label>
-                        <input type="number" step="0.01" name="giro_exterior" value="<?= $proyecto['giro_exterior'] ?>" <?= (esSuperusuario() || esGerente()) ? '' : 'readonly' ?>>
-
-                        <label>TC Oficial:</label>
-                        <input type="number" step = "0.01" name="tc_oficial" value="<?= $proyecto['tc_oficial'] ?>" <?= (esSuperusuario() || esGerente()) ? '' : 'readonly' ?>>
-
-                        <label>TC Paralelo Hoy:</label>
-                        <input type="number" step="0.01" name="tc_paralelo_hoy" value="<?= $proyecto['tc_paralelo_hoy'] ?>">
-
-                        <label>TC Estimado 30:</label>
-                        <input type="number" step="0.01" name="tc_estimado30" value="<?= $proyecto['tc_estimado30'] ?>">
-
-                        <label>TC Estimado 60:</label>
-                        <input type="number" step="0.01" name="tc_estimado60" value="<?= $proyecto['tc_estimado60'] ?>">
-                    </div>
-
-                    <div class="maestro-col">
-                        <?php if(esGerente() || esSuperusuario()):?>
-                            <label>IVA:</label>
-                            <input type="number" step="0.01" name="iva" value="<?= $proyecto['iva'] ?>">
-
-                            <label>IT:</label>
-                            <input type="number" step="0.01" name="it" value="<?= $proyecto['it'] ?>">
-
-                            <label>ITF:</label>
-                            <input type="number" step="0.01" name="itf" value="<?= $proyecto['itf'] ?>">
-
-                            <label>Comisión Aduana:</label>
-                            <input type="number" step="0.01" name="com_aduana" value="<?= $proyecto['com_aduana'] ?>">
+                <div class="maestro-header">
+                    <div class="header-title-section">
+                        <h2>Presupuesto - <?= $proyecto['numero_proyecto'] ?></h2>
+                        <?php if (strtolower($proyecto['nombre_estado']) == 'ganado'): ?>
+                            <div class="monto-adjudicado-header">
+                                <label style="color: white; font-weight: bold; margin-right: 8px;">Monto Adjudicado:</label>
+                                <input type="text"
+                                    id="monto_adjudicado"
+                                    name="monto_adjudicado"
+                                    value="<?= number_format((float)$proyecto['monto_adjudicado'], 2, ',', '.') ?>"
+                                    style="font-weight: bold; color: #1b5e20; padding: 4px 8px; border-radius: 4px; border: 1px solid #a5d6a7; background-color: #e8f5e9;">
+                            </div>
                         <?php endif; ?>
-                        <label>Pago anticipado a DMC:</label>
-                        <input type="number" step="0.01" name="pago_anticipado_DMC" value="<?= $proyecto['pago_anticipado_DMC'] ?>">  
-                        
                     </div>
+                    <button type="submit" class="btn secondary">Guardar Cambios</button>                      
                 </div>
-            </div>            
-        </form>
+            
+                <div class="maestro-content">
+                    <div class="maestro-row">
+                        <div class="maestro-col">
+                            <label>Titulo:</label>
+                            <input type="text" name="titulo" value="<?= $proyecto['titulo'] ?>">
+
+                            <label>Fecha Inicio:</label>
+                            <input type="date" name="fecha_proyecto" value="<?= $proyecto['fecha_proyecto'] ?>" <?= (esSuperusuario() || esGerente()) ? '' : 'readonly' ?>>
+
+                            <label>Cliente:</label>
+                            <input type="text" name="cliente" value="<?= htmlspecialchars($proyecto['cliente']) ?>">
+
+                            <label>Fecha Cierre:</label>
+                            <input type="date" name="fecha_cierre" value="<?= $proyecto['fecha_cierre'] ?>">
+
+                            <label>Creado por:</label>
+                            <input type="text" value="<?= htmlspecialchars($proyecto['nombre_usuario']) ?>" disabled>
+                        </div>
+
+                        <div class="maestro-col">
+                            <label>Giro:</label>
+                            <input type="number" step="0.01" name="giro_exterior" value="<?= $proyecto['giro_exterior'] ?>" <?= (esSuperusuario() || esGerente()) ? '' : 'readonly' ?>>
+
+                            <label>TC Oficial:</label>
+                            <input type="number" step = "0.01" name="tc_oficial" value="<?= $proyecto['tc_oficial'] ?>" <?= (esSuperusuario() || esGerente()) ? '' : 'readonly' ?>>
+
+                            <label>TC Paralelo Hoy:</label>
+                            <input type="number" step="0.01" name="tc_paralelo_hoy" value="<?= $proyecto['tc_paralelo_hoy'] ?>">
+
+                            <label>TC Estimado 30:</label>
+                            <input type="number" step="0.01" name="tc_estimado30" value="<?= $proyecto['tc_estimado30'] ?>">
+
+                            <label>TC Estimado 60:</label>
+                            <input type="number" step="0.01" name="tc_estimado60" value="<?= $proyecto['tc_estimado60'] ?>">
+                        </div>
+
+                        <div class="maestro-col">
+                            <?php if(esGerente() || esSuperusuario()):?>
+                                <label>IVA:</label>
+                                <input type="number" step="0.01" name="iva" value="<?= $proyecto['iva'] ?>">
+
+                                <label>IT:</label>
+                                <input type="number" step="0.01" name="it" value="<?= $proyecto['it'] ?>">
+
+                                <label>ITF:</label>
+                                <input type="number" step="0.01" name="itf" value="<?= $proyecto['itf'] ?>">
+
+                                <label>Comisión Aduana:</label>
+                                <input type="number" step="0.01" name="com_aduana" value="<?= $proyecto['com_aduana'] ?>">
+                            <?php endif; ?>
+                            <label>Pago anticipado a DMC:</label>
+                            <input type="number" step="0.01" name="pago_anticipado_DMC" value="<?= $proyecto['pago_anticipado_DMC'] ?>">  
+                            
+                        </div>
+                    </div>
+                </div>            
+            </form>
        </div>
     </div>
     

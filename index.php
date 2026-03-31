@@ -16,7 +16,11 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $resultado = autenticarUsuario($username, $password);
     
     if ($resultado === 'exito') {
-        header('Location: dashboard.php');
+        if (esGerente() || esSuperusuario()) {
+            header('Location: dashboard.php');
+        } else {
+            header('Location: oportunidades.php');
+        }
         exit();
     } elseif ($resultado === 'primer_ingreso') {
         header('Location: cambiar_contrasena.php?obligatorio=1');

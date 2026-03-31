@@ -442,9 +442,9 @@ if ($fin_rango - $inicio_rango < $rango_paginas - 1) {
                 </td>
 
                 <td style="text-align: center;">
-                    <a href="ver_proyecto.php?id=<?= $proyecto['id_proyecto'] ?>&<?= http_build_query(array_filter(['sucursal' => $filtro_sucursal, 'usuario' => $filtro_usuario, 'estado' => $filtro_estado, 'buscar' => $busqueda, 'pagina' => $pagina_actual])) ?>" 
-                       class="btn" style="padding: 5px 15px;">
-                       Abrir
+                    <a href="ver_proyecto.php?id=<?= $proyecto['id_proyecto'] ?>&from=proyectos&<?= http_build_query(array_filter(['sucursal' => $filtro_sucursal, 'usuario' => $filtro_usuario, 'estado' => $filtro_estado, 'buscar' => $busqueda, 'pagina' => $pagina_actual])) ?>" 
+                        class="btn" style="padding: 5px 15px;">
+                        Abrir
                     </a>
                 </td>
             </tr>

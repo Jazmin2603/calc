@@ -6,6 +6,17 @@ include 'includes/funciones.php';
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $id_proyecto = $_POST['id_proyecto'];
     
+    $from = $_POST['from'] ?? 'proyectos';
+    $pagina_retorno = in_array($from, ['proyectos', 'oportunidades']) ? $from : 'proyectos';
+    
+    // Reconstruir parámetros de filtro
+    $params_retorno = [];
+    foreach ($_POST as $key => $val) {
+        if (strpos($key, 'retorno_') === 0 && !empty($val)) {
+            $params_retorno[str_replace('retorno_', '', $key)] = $val;
+        }
+    }
+    
     $stmt_select = $conn->prepare("SELECT * FROM proyecto WHERE id_proyecto = ?");
     $stmt_select->execute([$id_proyecto]);
     $datos_actuales = $stmt_select->fetch(PDO::FETCH_ASSOC);
@@ -27,7 +38,6 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     }
 
     $fechaCierre = !empty($_POST['fecha_cierre']) ? $_POST['fecha_cierre'] : $datos_actuales['fecha_cierre'];
-
     $monto_adjudicado = isset($_POST['monto_adjudicado']) ? $_POST['monto_adjudicado'] : $datos_actuales['monto_adjudicado'];
 
     $stmt = $conn->prepare("UPDATE proyecto SET 
@@ -69,6 +79,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
     actualizar($id_proyecto);
 
-    header("Location: ver_proyecto.php?id=$id_proyecto&guardado=1");
+    $query_string = !empty($params_retorno) ? '&' . http_build_query($params_retorno) : '';
+    header("Location: ver_proyecto.php?id=$id_proyecto&from=$from&guardado=1$query_string");
     exit();
 }

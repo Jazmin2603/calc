@@ -5,10 +5,14 @@ include 'includes/auth.php';
 
 // Si ya está autenticado y no es primer ingreso, redirigir al dashboard
 if (isset($_SESSION['usuario']) && (!isset($_SESSION['usuario']['primer_ingreso']) || $_SESSION['usuario']['primer_ingreso'] == 0)) {
-    header('Location: dashboard.php');
+    // Vendedores (ni gerente ni superusuario) van directo al Kanban
+    if (!esGerente() && !esSuperusuario()) {
+        header('Location: oportunidades.php');
+    } else {
+        header('Location: dashboard.php');
+    }
     exit();
 }
-
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $username = trim($_POST['username'] ?? '');
     $password = trim($_POST['password'] ?? '');

@@ -158,6 +158,9 @@ $etapas_json = json_encode($etapas);
         <i class="fas fa-arrow-left"></i> Dashboard
     </a>
     <?php endif; ?>
+    <a href="gestion_clientes.php" class="btn btn-ghost" style="font-size:.76rem;padding:4px 11px;">
+        Clientes
+    </a>
 </div>
 
 <div class="toolbar">

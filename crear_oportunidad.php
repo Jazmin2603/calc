@@ -1,6 +1,7 @@
 <?php
 include 'includes/config.php';
 include 'includes/auth.php';
+require_once 'includes/ews_helper.php';
 
 verificarPermiso("oportunidades", "ver");
 
@@ -231,15 +232,14 @@ if ($action === 'save_actividad') {
         echo json_encode(['success' => false, 'message' => 'La fecha del próximo paso es obligatoria']); exit;
     }
 
-    // Obtener datos de la oportunidad y el email corporativo del vendedor
     $stmt_op = $conn->prepare("
-        SELECT o.titulo, c.nombre AS cliente_nombre, u.correo AS email_vendedor
+        SELECT o.titulo, c.nombre AS cliente_nombre, u.email AS email_vendedor
         FROM oportunidades o
         JOIN clientes c ON o.cliente_id = c.id
-        JOIN usuarios u ON o.usuario_id = u.id
+        JOIN usuarios u ON u.id = ?
         WHERE o.id = ?
     ");
-    $stmt_op->execute([$oid]);
+    $stmt_op->execute([$uid, $oid]);
     $op_data = $stmt_op->fetch(PDO::FETCH_ASSOC);
 
     // Insertar la actividad
@@ -321,11 +321,11 @@ $proximo_paso";
 //      corporativo registrado (necesario para EWS)
 // ═══════════════════════════════════════════════════════════
 if ($action === 'ms_status') {
-    $stmt = $conn->prepare("SELECT correo FROM usuarios WHERE id = ?");
+    $stmt = $conn->prepare("SELECT email FROM usuarios WHERE id = ?");
     $stmt->execute([$uid]);
     $row = $stmt->fetch(PDO::FETCH_ASSOC);
 
-    $email = trim($row['correo'] ?? '');
+    $email = trim($row['email'] ?? '');
     // Considerar "conectado" si tiene un email @fils.bo registrado
     $conectado = !empty($email) && str_contains($email, '@');
 
@@ -353,7 +353,7 @@ if ($action === 'link_presupuesto') {
         echo json_encode(['success' => false, 'message' => $e->getMessage()]); exit;
     }
 
-    echo json_encode(array_merge(['success' => true], _presupuestosOp($conn, $oid)));
+    echo json_encode(array_merge(['success' => true], _presupuestosOp($conn, $oid, $uid, $puede_ver_todas)));
     exit;
 }
 
@@ -370,7 +370,7 @@ if ($action === 'unlink_presupuesto') {
         "DELETE FROM oportunidad_presupuestos WHERE oportunidad_id=? AND proyecto_id=?"
     )->execute([$oid,$pid]);
 
-    echo json_encode(array_merge(['success' => true], _presupuestosOp($conn, $oid)));
+    echo json_encode(array_merge(['success' => true], _presupuestosOp($conn, $oid, $uid, $puede_ver_todas)));
     exit;
 }
 
@@ -478,7 +478,7 @@ if ($action === 'crear_presupuesto') {
         $conn->commit();
 
         // Retornar lista actualizada de presupuestos
-        $result = _presupuestosOp($conn, $oid);
+        $result = _presupuestosOp($conn, $oid, $uid, $puede_ver_todas);
 
         echo json_encode(array_merge([
             'success'    => true,
@@ -512,6 +512,8 @@ if ($action === 'delete') {
 echo json_encode(['success' => false, 'message' => 'Acción no válida']);
 
 // ─── Helper ─────────────────────────────────────────────
+// Devuelve los presupuestos vinculados a $oid y los disponibles
+// (no vinculados a ninguna oportunidad, filtrados por usuario si aplica)
 function _presupuestosOp(PDO $conn, int $oid, int $uid = 0, bool $puede_ver_todas = false): array
 {
     // Vinculados a esta oportunidad

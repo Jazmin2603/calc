@@ -1,8 +1,8 @@
 <?php
-define('EWS_HOST',     getenv('EWS_HOST')     ?: 'https://correo.fils.bo/EWS/Exchange.asmx');
-define('EWS_USER',     getenv('EWS_USER')     ?: 'fils\crm-service');   // DOMINIO\usuario  o  crm@fils.bo
-define('EWS_PASS',     getenv('EWS_PASS')     ?: 'CONTRASEÑA_CUENTA_SERVICIO');
-define('EWS_TIMEZONE', 'SA Western Standard Time'); // Exchange usa nombres de Windows — La Paz = GMT-4
+define('EWS_HOST', getenv('EWS_HOST') ?: 'https://correo.fils.bo/EWS/Exchange.asmx');
+define('EWS_USER', getenv('EWS_USER') ?: 'notificaciones');  
+define('EWS_PASS',     getenv('EWS_PASS')     ?: 'notify122$*');
+define('EWS_TIMEZONE', 'SA Western Standard Time'); 
 
 // ───────────────────────────────────────────────────────────
 // Crea un evento en el calendario de $email_vendedor
@@ -201,14 +201,14 @@ function _ewsRequest(string $soap_body): string
             'Content-Type: text/xml; charset=utf-8',
             'SOAPAction: ""',
         ],
-        // Autenticación NTLM — Exchange 2019 On-Premise la requiere por defecto
         CURLOPT_HTTPAUTH       => CURLAUTH_NTLM,
         CURLOPT_USERPWD        => EWS_USER . ':' . EWS_PASS,
-        CURLOPT_TIMEOUT        => 20,
-        // Si el certificado SSL es autofirmado (común en servidores internos),
-        // cambiar a false temporalmente para probar, pero usar true en producción
-        CURLOPT_SSL_VERIFYPEER => true,
-        CURLOPT_SSL_VERIFYHOST => 2,
+        CURLOPT_TIMEOUT        => 30,
+        CURLOPT_SSL_VERIFYPEER => false,
+        CURLOPT_SSL_VERIFYHOST => 0,
+        CURLOPT_FORBID_REUSE   => true,   // <-- fuerza conexión nueva por request
+        CURLOPT_FRESH_CONNECT  => true,   // <-- no reutiliza conexión del pool
+        CURLOPT_HTTP_VERSION   => CURL_HTTP_VERSION_1_1,  // <-- NTLM requiere HTTP/1.1, no HTTP/2
     ]);
 
     $response  = curl_exec($ch);

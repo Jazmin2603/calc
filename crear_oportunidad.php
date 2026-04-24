@@ -317,6 +317,46 @@ $proximo_paso";
 }
 
 // ═══════════════════════════════════════════════════════════
+// POST  action=update_actividad  — registrar resultado de actividad existente
+// ═══════════════════════════════════════════════════════════
+if ($action === 'update_actividad') {
+    if (!$puede_editar && !$puede_crear) {
+        echo json_encode(['success' => false, 'message' => 'Sin permisos']); exit;
+    }
+    $data      = json_decode(file_get_contents('php://input'), true);
+    $act_id    = intval($data['actividad_id'] ?? 0);
+    $resultado = trim($data['resultado']      ?? '');
+
+    $stmt = $conn->prepare("
+        SELECT a.oportunidad_id
+        FROM oportunidad_actividades a
+        JOIN oportunidades o ON a.oportunidad_id = o.id
+        WHERE a.id = ? AND (? OR o.usuario_id = ?)
+    ");
+    $stmt->execute([$act_id, $puede_ver_todas ? 1 : 0, $uid]);
+    $row = $stmt->fetch(PDO::FETCH_ASSOC);
+
+    if (!$row) {
+        echo json_encode(['success' => false, 'message' => 'Sin acceso']); exit;
+    }
+
+    $conn->prepare("UPDATE oportunidad_actividades SET resultado = ? WHERE id = ?")
+         ->execute([$resultado, $act_id]);
+
+    $stmt = $conn->prepare("
+        SELECT a.*, u.nombre AS nombre_usuario
+        FROM oportunidad_actividades a
+        JOIN usuarios u ON a.usuario_id = u.id
+        WHERE a.oportunidad_id = ?
+        ORDER BY a.fecha_creacion DESC
+    ");
+    $stmt->execute([$row['oportunidad_id']]);
+
+    echo json_encode(['success' => true, 'actividades' => $stmt->fetchAll(PDO::FETCH_ASSOC)]);
+    exit;
+}
+
+// ═══════════════════════════════════════════════════════════
 // GET  action=ms_status  — verifica si el usuario tiene email
 //      corporativo registrado (necesario para EWS)
 // ═══════════════════════════════════════════════════════════

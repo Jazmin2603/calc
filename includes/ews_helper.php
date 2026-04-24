@@ -1,7 +1,7 @@
 <?php
 define('EWS_HOST', getenv('EWS_HOST') ?: 'https://correo.fils.bo/EWS/Exchange.asmx');
 define('EWS_USER', getenv('EWS_USER') ?: 'notificaciones');  
-define('EWS_PASS',     getenv('EWS_PASS')     ?: 'notify122$*');
+define('EWS_PASS',     getenv('EWS_PASS')     ?: 'N0t1f1c4c10n3$*');
 define('EWS_TIMEZONE', 'SA Western Standard Time'); 
 
 // ───────────────────────────────────────────────────────────
@@ -29,6 +29,7 @@ function ewsCrearEvento(string $email_vendedor, array $evento): string
     $location = _ewsEsc($evento['location'] ?? '');
     $start    = date('Y-m-d\TH:i:s', $start_ts);
     $end      = date('Y-m-d\TH:i:s', $end_ts);
+    $tz       = EWS_TIMEZONE;
 
     $location_xml = $location
         ? "<t:Location>$location</t:Location>"

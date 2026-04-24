@@ -432,16 +432,16 @@ $etapas_json = json_encode($etapas);
                     </select>
                 </div>
                 <div class="fg">
-                    <label>Fecha próximo paso *</label>
+                    <label>Fecha de la actividad *</label>
                     <input type="datetime-local" id="actFechaProx">
                 </div>
                 <div class="fg span2">
-                    <label>Resultado</label>
-                    <textarea id="actResultado" style="min-height:50px;" placeholder="¿Qué ocurrió?"></textarea>
+                    <label>Descripción / Agenda</label>
+                    <textarea id="actProximo" style="min-height:44px;" placeholder="¿Qué está planificado?"></textarea>
                 </div>
                 <div class="fg span2">
-                    <label>Próximo paso</label>
-                    <textarea id="actProximo" style="min-height:44px;" placeholder="¿Qué se acordó?"></textarea>
+                    <label>Resultado <span style="color:var(--ink-3);font-weight:400;">(opcional — si ya ocurrió)</span></label>
+                    <textarea id="actResultado" style="min-height:50px;" placeholder="¿Qué ocurrió?"></textarea>
                 </div>
             </div>
             <div style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:8px;margin-top:4px;">
@@ -625,6 +625,8 @@ function setTab(btn, id) {
     if (id === 'tact') {
         const label = document.getElementById('labelOutlookCheck');
         if (label) label.style.display = outlookConectado ? 'flex' : 'none';
+        const chk = document.getElementById('chkOutlook');
+        if (chk && outlookConectado) chk.checked = true;
     }
 }
 
@@ -724,23 +726,69 @@ function renderActividades(lista) {
         return;
     }
     div.innerHTML = lista.map(a => `
-        <div class="act-item" data-tipo="${esc(a.tipo)}">
-            <div class="act-row">
+            <div class="act-item" data-id="${a.id}" data-tipo="${esc(a.tipo)}">            <div class="act-row">
                 <span>
                     <span class="act-tipo">${tipoIcon[a.tipo] || '•'} ${esc(a.tipo)}</span>
                     <span class="act-who">${esc(a.nombre_usuario)}</span>
+                    ${a.ms_event_id ? ' <i class="fas fa-calendar-check" style="color:var(--blue);font-size:.75rem;margin-left:3px;" title="En calendario de Outlook"></i>' : ''}
                 </span>
                 <span class="act-ts">${fmtDt(a.fecha_creacion)}</span>
             </div>
-            ${a.resultado ? `<div class="act-body"><strong>Resultado:</strong> ${esc(a.resultado)}</div>` : ''}
-            ${a.proximo_paso ? `<div class="act-prox">
-                <i class="fas fa-arrow-right"></i>
-                <strong>Próximo:</strong> ${esc(a.proximo_paso)}
-                <span style="color:var(--ink-3);margin-left:4px;">· ${fmtDt(a.fecha_proximo_paso)}</span>
-            </div>` : ''}
+            <div class="act-prox">
+                <i class="fas fa-calendar"></i>
+                <strong>Fecha:</strong> ${fmtDt(a.fecha_proximo_paso)}
+                ${a.proximo_paso ? `<span style="color:var(--ink-2);margin-left:4px;">· ${esc(a.proximo_paso)}</span>` : ''}
+            </div>
+            ${a.resultado
+                ? `<div class="act-body"><strong>Resultado:</strong> ${esc(a.resultado)}</div>`
+                : `<div style="margin-top:4px;">
+                    <button onclick="mostrarFormResultado(${a.id})"
+                            style="background:none;border:none;cursor:pointer;color:var(--blue);font-size:.78rem;padding:2px 0;display:inline-flex;align-items:center;gap:4px;">
+                        <i class="fas fa-plus-circle"></i> Registrar resultado
+                    </button>
+                    <div id="resultForm_${a.id}" style="display:none;margin-top:6px;">
+                        <textarea id="resultText_${a.id}"
+                                  style="width:100%;min-height:60px;box-sizing:border-box;border:1px solid var(--border);border-radius:6px;padding:6px;font-size:.82rem;resize:vertical;"
+                                  placeholder="¿Qué ocurrió en esta actividad?"></textarea>
+                        <div style="display:flex;gap:8px;margin-top:4px;">
+                            <button class="btn btn-green" style="font-size:.78rem;padding:4px 10px;"
+                                    onclick="guardarResultado(${a.id})">
+                                <i class="fas fa-save"></i> Guardar
+                            </button>
+                            <button class="btn btn-ghost" style="font-size:.78rem;padding:4px 10px;"
+                                    onclick="mostrarFormResultado(${a.id})">
+                                Cancelar
+                            </button>
+                        </div>
+                    </div>
+                  </div>`
+            }
         </div>
     `).join('');
     document.getElementById('badgeAct').textContent = lista.length || '';
+}
+
+function mostrarFormResultado(actId) {
+    const form = document.getElementById(`resultForm_${actId}`);
+    if (!form) return;
+    form.style.display = form.style.display === 'none' ? 'block' : 'none';
+}
+
+async function guardarResultado(actId) {
+    const texto = document.getElementById(`resultText_${actId}`)?.value?.trim();
+    if (!texto) { toast('Escribe qué ocurrió en la actividad', 'err'); return; }
+    const r = await fetch('crear_oportunidad.php?action=update_actividad', {
+        method: 'POST',
+        headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify({ actividad_id: actId, resultado: texto })
+    });
+    const d = await r.json();
+    if (d.success) {
+        renderActividades(d.actividades);
+        toast('Resultado registrado ✓');
+    } else {
+        toast(d.message || 'Error', 'err');
+    }
 }
 
 /* ── Render presupuestos ───────────────────────────────── */
@@ -912,13 +960,14 @@ function renderOutlookStatus(d) {
     const label = document.getElementById('labelOutlookCheck');
 
     if (d.conectado) {
-        // Email corporativo detectado — mostrar como activo
         wrap.innerHTML = `
             <span class="outlook-chip connected" title="Calendario Exchange activo">
                 <i class="fas fa-calendar-check"></i>
                 ${esc(d.email)}
             </span>`;
         if (label) label.style.display = 'flex';
+        const chk = document.getElementById('chkOutlook');
+        if (chk) chk.checked = true;
     } else {
         // Sin email corporativo en el perfil
         wrap.innerHTML = `

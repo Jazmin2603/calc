@@ -128,6 +128,37 @@ $presupuestos_disponibles = $conn->query("
     LIMIT 300
 ")->fetchAll(PDO::FETCH_ASSOC);
 
+$conditions_g = [];
+$params_g     = [];
+if ($puede_ver_todas) {
+    if ($filtro_sucursal) { $conditions_g[] = "o.sucursal_id = ?"; $params_g[] = $filtro_sucursal; }
+    if ($filtro_usuario)  { $conditions_g[] = "o.usuario_id = ?";  $params_g[] = $filtro_usuario; }
+} else {
+    $conditions_g[] = "o.usuario_id = ?";
+    $params_g[] = $uid;
+}
+if (!empty($busqueda)) {
+    $conditions_g[] = "(o.titulo LIKE ? OR c.nombre LIKE ?)";
+    $params_g[] = "%$busqueda%";
+    $params_g[] = "%$busqueda%";
+}
+$where_g = $conditions_g ? 'WHERE ' . implode(' AND ', $conditions_g) : '';
+$stmt_g  = $conn->prepare("
+    SELECT o.id, o.numero, o.titulo, o.monto_estimado, o.estado, o.fecha_cierre,
+           c.nombre AS cliente_nombre,
+           u.nombre AS nombre_usuario,
+           e.nombre AS etapa_nombre
+    FROM oportunidades o
+    JOIN clientes c ON o.cliente_id = c.id
+    JOIN usuarios u ON o.usuario_id = u.id
+    JOIN oportunidad_etapas e ON o.etapa_id = e.id
+    $where_g
+    ORDER BY o.id DESC
+");
+$stmt_g->execute($params_g);
+$datos_vistas      = $stmt_g->fetchAll(PDO::FETCH_ASSOC);
+$datos_vistas_json = json_encode($datos_vistas);
+
 // Etapas en JSON para el JS
 $etapas_json = json_encode($etapas);
 ?>
@@ -142,6 +173,38 @@ $etapas_json = json_encode($etapas);
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="oportunidades.css">
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+<style>
+/* ── View Toggle ── */
+.view-toggle{display:flex;gap:2px;background:var(--surface-2,#f1f5f9);border-radius:8px;padding:2px;border:1px solid var(--border,#e2e8f0);}
+.vtb{background:none;border:none;cursor:pointer;padding:5px 11px;border-radius:6px;color:var(--ink-2,#64748b);font-size:.88rem;transition:all .15s;line-height:1;}
+.vtb:hover{background:var(--surface-3,#e2e8f0);}
+.vtb.active{background:#fff;color:var(--blue,#2563eb);box-shadow:0 1px 3px rgba(0,0,0,.12);}
+/* ── Lista ── */
+#vistaLista{padding:16px 20px;overflow-x:auto;}
+.op-table{width:100%;border-collapse:collapse;font-size:.84rem;}
+.op-table th{background:var(--surface-2,#f1f5f9);padding:9px 12px;text-align:left;font-weight:600;color:var(--ink-2,#64748b);border-bottom:2px solid var(--border,#e2e8f0);white-space:nowrap;user-select:none;}
+.op-table th.sortable{cursor:pointer;}
+.op-table th.sortable:hover{color:var(--blue,#2563eb);}
+.op-table td{padding:9px 12px;border-bottom:1px solid var(--border,#e2e8f0);color:var(--ink-1,#1e293b);vertical-align:middle;}
+.op-table tr:hover td{background:var(--surface-2,#f1f5f9);cursor:pointer;}
+.td-num{font-family:var(--mono,'JetBrains Mono',monospace);color:var(--ink-3,#94a3b8);font-size:.76rem;}
+.td-titulo{font-weight:500;max-width:200px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}
+.td-monto{font-family:var(--mono,'JetBrains Mono',monospace);text-align:right;white-space:nowrap;}
+.etapa-pill{display:inline-block;padding:2px 9px;border-radius:20px;font-size:.72rem;font-weight:600;color:#fff;white-space:nowrap;}
+.estado-pill{display:inline-block;padding:2px 9px;border-radius:20px;font-size:.72rem;font-weight:600;white-space:nowrap;}
+.estado-Activo{background:#dbeafe;color:#1d4ed8;}
+.estado-Ganado{background:#dcfce7;color:#166534;}
+.estado-Perdido{background:#fee2e2;color:#991b1b;}
+/* ── Gráficos ── */
+#vistaGraficos{padding:16px 20px;}
+.chart-grid{display:grid;grid-template-columns:1fr 1fr;gap:16px;}
+.chart-card{background:#fff;border-radius:12px;border:1px solid var(--border,#e2e8f0);padding:18px 16px;}
+.chart-card.span2{grid-column:span 2;}
+.chart-ttl{font-weight:600;font-size:.86rem;color:var(--ink-1,#1e293b);margin-bottom:14px;display:flex;align-items:center;gap:6px;}
+.chart-sub{font-size:.75rem;color:var(--ink-3,#94a3b8);font-weight:400;margin-left:4px;}
+@media(max-width:768px){.chart-grid{grid-template-columns:1fr;}.chart-card.span2{grid-column:span 1;}}
+</style>
 </head>
 <body>
 <div class="shell">
@@ -207,13 +270,19 @@ $etapas_json = json_encode($etapas);
 
     </form>
 
+    <div class="view-toggle">
+        <button type="button" class="vtb" id="vtbKanban"   onclick="setVista('kanban')"   title="Vista Kanban"><i class="fas fa-th-large"></i></button>
+        <button type="button" class="vtb" id="vtbLista"    onclick="setVista('lista')"    title="Vista Lista"><i class="fas fa-list"></i></button>
+        <button type="button" class="vtb" id="vtbGraficos" onclick="setVista('graficos')" title="Gráficos"><i class="fas fa-chart-bar"></i></button>
+    </div>
+
     <span class="toolbar-meta">
         <?= count($todas) ?> oport. &bull;
         Bs <?= number_format(array_sum(array_column($todas, 'monto_estimado')), 2, ',', '.') ?>
     </span>
 </div>
 
-<div class="kanban-scroll">
+<div class="kanban-scroll" id="vistaKanban">
 <div class="kanban-board" id="kanbanBoard">
 
 <?php foreach ($por_etapa as $eid => $grupo):
@@ -519,12 +588,159 @@ $etapas_json = json_encode($etapas);
      JAVASCRIPT
 ════════════════════════════════════════════════════════ -->
 <script>
-const PUEDE_EDITAR           = <?= json_encode($puede_editar) ?>;
-const PUEDE_CREAR            = <?= json_encode($puede_crear) ?>;
-const PUEDE_ELIMINAR         = <?= json_encode($puede_eliminar) ?>;
+const PUEDE_EDITAR            = <?= json_encode($puede_editar) ?>;
+const PUEDE_CREAR             = <?= json_encode($puede_crear) ?>;
+const PUEDE_ELIMINAR          = <?= json_encode($puede_eliminar) ?>;
 const PUEDE_CREAR_PRESUPUESTO = <?= json_encode($puede_crear_presupuesto) ?>;
 let opId = null;
-let opClienteId = null;  // para crear presupuesto
+let opClienteId = null;
+
+/* ── Datos para lista y gráficos ── */
+const VISTAS_DATA = <?= $datos_vistas_json ?>;
+const ETAPA_COLORES = {<?php foreach ($etapas as $i => $e): ?>
+    <?= json_encode($e['nombre']) ?>: '<?= $colores[$i % count($colores)] ?>',
+<?php endforeach; ?>};
+
+/* ═══════════════════════════════════════════════════════════
+   CAMBIO DE VISTA  (kanban / lista / graficos)
+═══════════════════════════════════════════════════════════ */
+let vistaActual = localStorage.getItem('op_vista') || 'kanban';
+let chartInst   = {};
+let sortDir     = {};
+
+function setVista(v) {
+    vistaActual = v;
+    localStorage.setItem('op_vista', v);
+    document.getElementById('vistaKanban').style.display   = v === 'kanban'   ? '' : 'none';
+    document.getElementById('vistaLista').style.display    = v === 'lista'    ? '' : 'none';
+    document.getElementById('vistaGraficos').style.display = v === 'graficos' ? '' : 'none';
+    document.querySelectorAll('.vtb').forEach(b => b.classList.remove('active'));
+    const btn = document.getElementById('vtb' + v.charAt(0).toUpperCase() + v.slice(1));
+    if (btn) btn.classList.add('active');
+    if (v === 'lista')    renderLista();
+    if (v === 'graficos') renderGraficos();
+}
+
+/* ── Lista ── */
+function renderLista() {
+    const tbody = document.getElementById('opTableBody');
+    if (!tbody) return;
+    tbody.innerHTML = VISTAS_DATA.map(o => `
+        <tr onclick="verOp(${o.id})">
+            <td class="td-num">#${String(o.numero).padStart(4,'0')}</td>
+            <td class="td-titulo" title="${esc(o.titulo)}">${esc(o.titulo)}</td>
+            <td>${esc(o.cliente_nombre)}</td>
+            <td><span class="etapa-pill" style="background:${ETAPA_COLORES[o.etapa_nombre]||'#475569'};">${esc(o.etapa_nombre)}</span></td>
+            <td class="td-monto">${numFmt(o.monto_estimado)}</td>
+            <td>${esc(o.nombre_usuario)}</td>
+            <td>${o.fecha_cierre ? fmtFecha(o.fecha_cierre) : '—'}</td>
+            <td><span class="estado-pill estado-${o.estado}">${o.estado}</span></td>
+        </tr>`).join('');
+}
+
+function sortTabla(col) {
+    const tbody = document.getElementById('opTableBody');
+    if (!tbody) return;
+    const rows = Array.from(tbody.querySelectorAll('tr'));
+    const asc  = sortDir[col] = !sortDir[col];
+    rows.sort((a, b) => {
+        const av = a.cells[col].textContent.trim();
+        const bv = b.cells[col].textContent.trim();
+        const an = parseFloat(av.replace(/[^0-9.-]/g, ''));
+        const bn = parseFloat(bv.replace(/[^0-9.-]/g, ''));
+        if (!isNaN(an) && !isNaN(bn)) return asc ? an - bn : bn - an;
+        return asc ? av.localeCompare(bv, 'es') : bv.localeCompare(av, 'es');
+    });
+    rows.forEach(r => tbody.appendChild(r));
+    document.querySelectorAll('.si').forEach(s => s.textContent = '');
+    const si = document.getElementById('si' + col);
+    if (si) si.textContent = asc ? ' ↑' : ' ↓';
+}
+
+/* ── Gráficos ── */
+function aggBy(campo) {
+    const m = {};
+    VISTAS_DATA.forEach(o => {
+        const k = o[campo] || '—';
+        if (!m[k]) m[k] = { count: 0, monto: 0, Activo: 0, Ganado: 0, Perdido: 0 };
+        m[k].count++;
+        m[k].monto += parseFloat(o.monto_estimado || 0);
+        if (o.estado in m[k]) m[k][o.estado]++;
+    });
+    return m;
+}
+
+function renderGraficos() {
+    Object.values(chartInst).forEach(c => { try { c.destroy(); } catch(_){} });
+    chartInst = {};
+
+    const PAL = ['#3b82f6','#7c3aed','#d97706','#059669','#0891b2','#dc2626','#475569','#f59e0b','#10b981'];
+
+    // — Por Vendedor (stacked, horizontal)
+    const dv   = aggBy('nombre_usuario');
+    const vend = Object.keys(dv);
+    chartInst.vendedor = new Chart(document.getElementById('chartVendedor'), {
+        type: 'bar',
+        data: {
+            labels: vend,
+            datasets: [
+                { label:'Activo',  data: vend.map(v => dv[v].Activo),  backgroundColor:'#3b82f6' },
+                { label:'Ganado',  data: vend.map(v => dv[v].Ganado),  backgroundColor:'#059669' },
+                { label:'Perdido', data: vend.map(v => dv[v].Perdido), backgroundColor:'#dc2626' },
+            ]
+        },
+        options: { indexAxis:'y', responsive:true, plugins:{ legend:{ position:'top' } },
+                   scales:{ x:{ stacked:true, ticks:{ stepSize:1 } }, y:{ stacked:true } } }
+    });
+
+    // — Por Etapa (vertical bar)
+    const de   = aggBy('etapa_nombre');
+    const etNm = Object.keys(de);
+    chartInst.etapa = new Chart(document.getElementById('chartEtapa'), {
+        type: 'bar',
+        data: {
+            labels: etNm,
+            datasets: [{ label:'Oportunidades', data: etNm.map(e => de[e].count),
+                         backgroundColor: etNm.map(e => ETAPA_COLORES[e] || '#475569') }]
+        },
+        options: { responsive:true, plugins:{ legend:{ display:false } },
+                   scales:{ y:{ beginAtZero:true, ticks:{ stepSize:1 } } } }
+    });
+
+    // — Por Estado (donut)
+    const est = { Activo:0, Ganado:0, Perdido:0 };
+    VISTAS_DATA.forEach(o => { if (o.estado in est) est[o.estado]++; });
+    chartInst.estado = new Chart(document.getElementById('chartEstado'), {
+        type: 'doughnut',
+        data: {
+            labels: ['Activo','Ganado','Perdido'],
+            datasets: [{ data:[est.Activo, est.Ganado, est.Perdido],
+                         backgroundColor:['#3b82f6','#059669','#dc2626'], borderWidth:2 }]
+        },
+        options: { responsive:true,
+                   plugins:{ legend:{ position:'bottom' },
+                              tooltip:{ callbacks:{ label: ctx =>
+                                  ` ${ctx.label}: ${ctx.raw} (${VISTAS_DATA.length ? Math.round(ctx.raw*100/VISTAS_DATA.length) : 0}%)`
+                              } } } }
+    });
+
+    // — Monto por Vendedor (horizontal bar)
+    chartInst.monto = new Chart(document.getElementById('chartMonto'), {
+        type: 'bar',
+        data: {
+            labels: vend,
+            datasets: [{ label:'Monto (Bs)', data: vend.map(v => Math.round(dv[v].monto)),
+                         backgroundColor: vend.map((_, i) => PAL[i % PAL.length]) }]
+        },
+        options: { indexAxis:'y', responsive:true, plugins:{ legend:{ display:false } },
+                   scales:{ x:{ ticks:{ callback: v => 'Bs ' + v.toLocaleString('es-BO') } } } }
+    });
+}
+
+function fmtFecha(s) {
+    if (!s) return '—';
+    return new Date(s + 'T12:00:00').toLocaleDateString('es-BO', {day:'2-digit', month:'short', year:'numeric'});
+}
 
 /* ── Clientes para búsqueda ────────────────────────────── */
 const CLIENTES = <?= json_encode($clientes_list) ?>;
@@ -1051,6 +1267,7 @@ function esc(s) {
 }
 
 // Inicializar estado Outlook al cargar la página
+setVista(vistaActual);
 cargarEstadoOutlook();
 
 // Mostrar mensaje si venimos del callback de Outlook

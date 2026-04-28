@@ -53,9 +53,20 @@ if ($action === 'get') {
     }
 
     // Actividades
+    // Actividades con sus invitados
     $stmt = $conn->prepare("
-        SELECT  a.*,
-                u.nombre AS nombre_usuario
+        SELECT a.*,
+            u.nombre AS nombre_usuario,
+            (SELECT GROUP_CONCAT(uu.nombre SEPARATOR ', ')
+                FROM oportunidad_actividad_invitados i
+                JOIN usuarios uu ON uu.id = i.usuario_id
+                WHERE i.actividad_id = a.id) AS invitados_nombres,
+            (SELECT GROUP_CONCAT(i.usuario_id)
+                FROM oportunidad_actividad_invitados i
+                WHERE i.actividad_id = a.id) AS invitados_ids,
+            (SELECT COUNT(*)
+                FROM oportunidad_actividad_invitados i
+                WHERE i.actividad_id = a.id AND i.ms_event_id IS NOT NULL) AS eventos_creados
         FROM oportunidad_actividades a
         JOIN usuarios u ON a.usuario_id = u.id
         WHERE a.oportunidad_id = ?
@@ -212,28 +223,39 @@ if ($action === 'mover') {
 // ═══════════════════════════════════════════════════════════
 // POST  action=save_actividad  — registrar actividad
 // ═══════════════════════════════════════════════════════════
+
 if ($action === 'save_actividad') {
     if (!$puede_editar && !$puede_crear) {
         echo json_encode(['success' => false, 'message' => 'Sin permisos']); exit;
     }
     $data = json_decode(file_get_contents('php://input'), true);
 
-    $oid            = intval($data['oportunidad_id']   ?? 0);
-    $tipo           = $data['tipo']                    ?? 'Llamada';
-    $resultado      = trim($data['resultado']          ?? '');
-    $proximo_paso   = trim($data['proximo_paso']       ?? '');
-    $fecha_prox     = trim($data['fecha_proximo_paso'] ?? '');
-    $enviar_outlook = !empty($data['enviar_outlook']);
+    $oid          = intval($data['oportunidad_id']   ?? 0);
+    $tipo         = $data['tipo']                    ?? 'Llamada';
+    $resultado    = trim($data['resultado']          ?? '');
+    $proximo_paso = trim($data['proximo_paso']       ?? '');
+    $fecha_ini    = trim($data['fecha_proximo_paso'] ?? '');
+    $fecha_fin    = trim($data['fecha_fin']          ?? '');
+    $send_outlook = !empty($data['enviar_outlook']);
+    $invitados    = is_array($data['invitados'] ?? null) ? array_map('intval', $data['invitados']) : [];
 
     $tipos_validos = ['Llamada','Reunion','Correo','Actualización de quote','Visita'];
     if (!in_array($tipo, $tipos_validos)) $tipo = 'Llamada';
 
-    if (empty($fecha_prox)) {
-        echo json_encode(['success' => false, 'message' => 'La fecha del próximo paso es obligatoria']); exit;
+    if (empty($fecha_ini)) {
+        echo json_encode(['success' => false, 'message' => 'La fecha/hora de inicio es obligatoria']); exit;
+    }
+    if (empty($fecha_fin)) {
+        // Default: 30 minutos después de inicio
+        $fecha_fin = date('Y-m-d H:i:s', strtotime($fecha_ini) + 1800);
+    }
+    if (strtotime($fecha_fin) <= strtotime($fecha_ini)) {
+        echo json_encode(['success' => false, 'message' => 'La hora fin debe ser posterior a la de inicio']); exit;
     }
 
+    // Datos de la oportunidad y del creador
     $stmt_op = $conn->prepare("
-        SELECT o.titulo, c.nombre AS cliente_nombre, u.email AS email_vendedor
+        SELECT o.titulo, c.nombre AS cliente_nombre, u.email AS email_creador
         FROM oportunidades o
         JOIN clientes c ON o.cliente_id = c.id
         JOIN usuarios u ON u.id = ?
@@ -242,64 +264,111 @@ if ($action === 'save_actividad') {
     $stmt_op->execute([$uid, $oid]);
     $op_data = $stmt_op->fetch(PDO::FETCH_ASSOC);
 
-    // Insertar la actividad
-    $conn->prepare("
-        INSERT INTO oportunidad_actividades
-            (oportunidad_id,usuario_id,tipo,resultado,proximo_paso,fecha_proximo_paso)
-        VALUES (?,?,?,?,?,?)
-    ")->execute([$oid, $uid, $tipo, $resultado, $proximo_paso, $fecha_prox]);
-    $actividad_id = $conn->lastInsertId();
+    // Asegurar que el creador siempre esté en la lista de invitados
+    if (!in_array($uid, $invitados)) array_unshift($invitados, $uid);
 
-    // ── Crear evento en Exchange si el usuario lo pidió ────
-    $ews_event_creado = false;
-    $ews_error        = null;
+    try {
+        $conn->beginTransaction();
 
-    if ($enviar_outlook && !empty($op_data['email_vendedor'])) {
-        try {
-            $tipo_labels = [
-                'Llamada'                => '📞 Llamada',
-                'Reunion'                => '🤝 Reunión',
-                'Correo'                 => '📧 Correo',
-                'Actualización de quote' => '📋 Act. de quote',
-                'Visita'                 => '🏢 Visita',
-            ];
-            $subject = ($tipo_labels[$tipo] ?? $tipo)
-                     . ' — ' . ($op_data['titulo'] ?? 'Oportunidad')
-                     . ' (' . ($op_data['cliente_nombre'] ?? '') . ')';
+        // Insertar la actividad
+        $conn->prepare("
+            INSERT INTO oportunidad_actividades
+                (oportunidad_id, usuario_id, tipo, resultado, proximo_paso, fecha_proximo_paso, fecha_fin)
+            VALUES (?,?,?,?,?,?,?)
+        ")->execute([$oid, $uid, $tipo, $resultado, $proximo_paso, $fecha_ini, $fecha_fin]);
+        $actividad_id = $conn->lastInsertId();
 
-            $body_parts = [];
-            if ($resultado)    $body_parts[] = "Resultado previo:
-$resultado";
-            if ($proximo_paso) $body_parts[] = "Próximo paso:
-$proximo_paso";
-            $body_text = implode("
-
-", $body_parts);
-
-            $event_ref = ewsCrearEvento($op_data['email_vendedor'], [
-                'subject'  => $subject,
-                'body'     => $body_text,
-                'start'    => $fecha_prox,
-                'location' => $op_data['cliente_nombre'] ?? '',
-            ]);
-
-            // Guardar referencia del evento para poder eliminarlo si se borra la actividad
-            $conn->prepare(
-                "UPDATE oportunidad_actividades SET ms_event_id = ? WHERE id = ?"
-            )->execute([$event_ref, $actividad_id]);
-
-            $ews_event_creado = true;
-
-        } catch (RuntimeException $e) {
-            $ews_error = $e->getMessage();
+        // Insertar invitados (sin ms_event_id por ahora)
+        $stmt_inv = $conn->prepare("
+            INSERT INTO oportunidad_actividad_invitados (actividad_id, usuario_id)
+            VALUES (?, ?)
+        ");
+        foreach ($invitados as $inv_uid) {
+            $stmt_inv->execute([$actividad_id, $inv_uid]);
         }
-    } elseif ($enviar_outlook && empty($op_data['email_vendedor'])) {
-        $ews_error = 'El usuario no tiene correo corporativo registrado en el sistema.';
+
+        $conn->commit();
+    } catch (Exception $e) {
+        if ($conn->inTransaction()) $conn->rollBack();
+        echo json_encode(['success' => false, 'message' => $e->getMessage()]); exit;
+    }
+
+    // ── Crear eventos en Exchange si el usuario lo pidió ────
+    $eventos_creados = 0;
+    $eventos_error   = [];
+    $ews_resumen     = null;
+
+    if ($send_outlook) {
+        $tipo_labels = [
+            'Llamada'                => '📞 Llamada',
+            'Reunion'                => '🤝 Reunión',
+            'Correo'                 => '📧 Correo',
+            'Actualización de quote' => '📋 Act. de quote',
+            'Visita'                 => '🏢 Visita',
+        ];
+        $subject = ($tipo_labels[$tipo] ?? $tipo)
+                 . ' — ' . ($op_data['titulo'] ?? 'Oportunidad')
+                 . ' (' . ($op_data['cliente_nombre'] ?? '') . ')';
+
+        $body_parts = [];
+        if ($resultado)    $body_parts[] = "Resultado previo:\n$resultado";
+        if ($proximo_paso) $body_parts[] = "$proximo_paso";
+        $body_text = implode("\n\n", $body_parts);
+
+        // Cargar emails de los invitados
+        $placeholders = implode(',', array_fill(0, count($invitados), '?'));
+        $stmt = $conn->prepare("SELECT id, email, nombre FROM usuarios WHERE id IN ($placeholders)");
+        $stmt->execute($invitados);
+        $emails = $stmt->fetchAll(PDO::FETCH_ASSOC);
+
+        $stmt_upd = $conn->prepare("
+            UPDATE oportunidad_actividad_invitados
+            SET ms_event_id = ?, ms_error = ?
+            WHERE actividad_id = ? AND usuario_id = ?
+        ");
+
+        foreach ($emails as $u) {
+            if (empty($u['email']) || !str_contains($u['email'], '@')) {
+                $stmt_upd->execute([null, 'Sin email corporativo', $actividad_id, $u['id']]);
+                $eventos_error[] = $u['nombre'] . ': sin email';
+                continue;
+            }
+            try {
+                $event_ref = ewsCrearEvento($u['email'], [
+                    'subject'  => $subject,
+                    'body'     => $body_text,
+                    'start'    => $fecha_ini,
+                    'end'      => $fecha_fin,
+                    'location' => $op_data['cliente_nombre'] ?? '',
+                ]);
+                $stmt_upd->execute([$event_ref, null, $actividad_id, $u['id']]);
+                $eventos_creados++;
+            } catch (RuntimeException $e) {
+                $err = substr($e->getMessage(), 0, 490);
+                $stmt_upd->execute([null, $err, $actividad_id, $u['id']]);
+                $eventos_error[] = $u['nombre'] . ': ' . $err;
+            }
+        }
+
+        if ($eventos_creados > 0 && empty($eventos_error)) {
+            $ews_resumen = "Evento creado en $eventos_creados calendario(s)";
+        } elseif ($eventos_creados > 0) {
+            $ews_resumen = "$eventos_creados creado(s), errores: " . implode('; ', $eventos_error);
+        } else {
+            $ews_resumen = 'Errores: ' . implode('; ', $eventos_error);
+        }
     }
 
     // Retornar lista actualizada
     $stmt = $conn->prepare("
-        SELECT a.*, u.nombre AS nombre_usuario
+        SELECT a.*, u.nombre AS nombre_usuario,
+               (SELECT GROUP_CONCAT(uu.nombre SEPARATOR ', ')
+                FROM oportunidad_actividad_invitados i
+                JOIN usuarios uu ON uu.id = i.usuario_id
+                WHERE i.actividad_id = a.id) AS invitados_nombres,
+               (SELECT COUNT(*)
+                FROM oportunidad_actividad_invitados i
+                WHERE i.actividad_id = a.id AND i.ms_event_id IS NOT NULL) AS eventos_creados
         FROM oportunidad_actividades a
         JOIN usuarios u ON a.usuario_id = u.id
         WHERE a.oportunidad_id = ?
@@ -308,11 +377,48 @@ $proximo_paso";
     $stmt->execute([$oid]);
 
     echo json_encode([
-        'success'          => true,
-        'actividades'      => $stmt->fetchAll(PDO::FETCH_ASSOC),
-        'ms_event_creado'  => $ews_event_creado,
-        'ms_error'         => $ews_error,
+        'success'         => true,
+        'actividades'     => $stmt->fetchAll(PDO::FETCH_ASSOC),
+        'ms_event_creado' => $eventos_creados > 0,
+        'ms_resumen'      => $ews_resumen,
+        'ms_errores'      => $eventos_error,
     ]);
+    exit;
+}
+
+// ═══════════════════════════════════════════════════════════
+// GET  action=calendario  — lista de actividades para vista calendario
+// ═══════════════════════════════════════════════════════════
+if ($action === 'calendario') {
+    $desde = $_GET['desde'] ?? date('Y-m-01');
+    $hasta = $_GET['hasta'] ?? date('Y-m-t', strtotime('+1 month'));
+
+    $cond_user = $puede_ver_todas ? '' : ' AND (a.usuario_id = ? OR i.usuario_id = ?)';
+    $params    = [$desde, $hasta];
+    if (!$puede_ver_todas) { $params[] = $uid; $params[] = $uid; }
+
+    $stmt = $conn->prepare("
+        SELECT DISTINCT a.id, a.oportunidad_id, a.usuario_id, a.tipo, a.resultado, a.proximo_paso,
+               a.fecha_proximo_paso AS fecha_inicio, a.fecha_fin,
+               u.nombre AS nombre_usuario,
+               o.titulo AS oportunidad_titulo, o.numero AS oportunidad_numero,
+               c.nombre AS cliente_nombre,
+               (SELECT GROUP_CONCAT(uu.nombre SEPARATOR ', ')
+                FROM oportunidad_actividad_invitados i2
+                JOIN usuarios uu ON uu.id = i2.usuario_id
+                WHERE i2.actividad_id = a.id) AS invitados
+        FROM oportunidad_actividades a
+        JOIN usuarios u      ON a.usuario_id     = u.id
+        JOIN oportunidades o ON a.oportunidad_id = o.id
+        JOIN clientes c      ON o.cliente_id     = c.id
+        LEFT JOIN oportunidad_actividad_invitados i ON i.actividad_id = a.id
+        WHERE a.fecha_proximo_paso >= ? AND a.fecha_proximo_paso <= ?
+        $cond_user
+        ORDER BY a.fecha_proximo_paso ASC
+    ");
+    $stmt->execute($params);
+
+    echo json_encode(['success' => true, 'actividades' => $stmt->fetchAll(PDO::FETCH_ASSOC)]);
     exit;
 }
 

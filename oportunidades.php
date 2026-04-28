@@ -13,10 +13,10 @@ $puede_crear_presupuesto = tienePermiso('presupuestos', 'crear');
 
 $params_js = http_build_query(array_filter([
     'sucursal' => $_GET['sucursal'] ?? null,
-    'usuario' => $_GET['usuario'] ?? null,
-    'estado' => $_GET['estado'] ?? null,
-    'buscar' => $_GET['buscar'] ?? null,
-    'pagina' => $_GET['pagina'] ?? null
+    'usuario'  => $_GET['usuario']  ?? null,
+    'estado'   => $_GET['estado']   ?? null,
+    'buscar'   => $_GET['buscar']   ?? null,
+    'pagina'   => $_GET['pagina']   ?? null
 ]));
 
 $params_url = !empty($params_js) ? "&" . $params_js : "";
@@ -114,6 +114,10 @@ $clientes_list = $conn->query(
     "SELECT id, nombre, ciudad, sector FROM clientes ORDER BY nombre"
 )->fetchAll(PDO::FETCH_ASSOC);
 
+$usuarios_invitables = $conn->query(
+    "SELECT id, nombre, email FROM usuarios WHERE activo = 1 ORDER BY nombre"
+)->fetchAll(PDO::FETCH_ASSOC);
+
 // Presupuestos disponibles para vincular
 $cond_pres = $puede_ver_todas ? '' : " AND p.id_usuario = $uid";
 $presupuestos_disponibles = $conn->query("
@@ -128,6 +132,7 @@ $presupuestos_disponibles = $conn->query("
     LIMIT 300
 ")->fetchAll(PDO::FETCH_ASSOC);
 
+// ── Datos para vistas Lista y Gráficos ─────────────────────
 $conditions_g = [];
 $params_g     = [];
 if ($puede_ver_todas) {
@@ -145,12 +150,16 @@ if (!empty($busqueda)) {
 $where_g = $conditions_g ? 'WHERE ' . implode(' AND ', $conditions_g) : '';
 $stmt_g  = $conn->prepare("
     SELECT o.id, o.numero, o.titulo, o.monto_estimado, o.estado, o.fecha_cierre,
+           o.fecha_creacion,
            c.nombre AS cliente_nombre,
            u.nombre AS nombre_usuario,
-           e.nombre AS etapa_nombre
+           s.nombre AS sucursal_nombre,
+           e.nombre AS etapa_nombre,
+           e.probabilidad AS etapa_probabilidad
     FROM oportunidades o
     JOIN clientes c ON o.cliente_id = c.id
     JOIN usuarios u ON o.usuario_id = u.id
+    JOIN sucursales s ON o.sucursal_id = s.id
     JOIN oportunidad_etapas e ON o.etapa_id = e.id
     $where_g
     ORDER BY o.id DESC
@@ -181,9 +190,9 @@ $etapas_json = json_encode($etapas);
 .vtb:hover{background:var(--surface-3,#e2e8f0);}
 .vtb.active{background:#fff;color:var(--blue,#2563eb);box-shadow:0 1px 3px rgba(0,0,0,.12);}
 /* ── Lista ── */
-#vistaLista{padding:16px 20px;overflow-x:auto;}
+#vistaLista{padding:16px 20px;overflow:auto;flex:1;min-height:0;}
 .op-table{width:100%;border-collapse:collapse;font-size:.84rem;}
-.op-table th{background:var(--surface-2,#f1f5f9);padding:9px 12px;text-align:left;font-weight:600;color:var(--ink-2,#64748b);border-bottom:2px solid var(--border,#e2e8f0);white-space:nowrap;user-select:none;}
+.op-table th{background:var(--surface-2,#f1f5f9);padding:9px 12px;text-align:left;font-weight:600;color:var(--ink-2,#64748b);border-bottom:2px solid var(--border,#e2e8f0);white-space:nowrap;user-select:none;position:sticky;top:0;z-index:1;}
 .op-table th.sortable{cursor:pointer;}
 .op-table th.sortable:hover{color:var(--blue,#2563eb);}
 .op-table td{padding:9px 12px;border-bottom:1px solid var(--border,#e2e8f0);color:var(--ink-1,#1e293b);vertical-align:middle;}
@@ -197,13 +206,36 @@ $etapas_json = json_encode($etapas);
 .estado-Ganado{background:#dcfce7;color:#166534;}
 .estado-Perdido{background:#fee2e2;color:#991b1b;}
 /* ── Gráficos ── */
-#vistaGraficos{padding:16px 20px;}
-.chart-grid{display:grid;grid-template-columns:1fr 1fr;gap:16px;}
-.chart-card{background:#fff;border-radius:12px;border:1px solid var(--border,#e2e8f0);padding:18px 16px;}
-.chart-card.span2{grid-column:span 2;}
-.chart-ttl{font-weight:600;font-size:.86rem;color:var(--ink-1,#1e293b);margin-bottom:14px;display:flex;align-items:center;gap:6px;}
-.chart-sub{font-size:.75rem;color:var(--ink-3,#94a3b8);font-weight:400;margin-left:4px;}
-@media(max-width:768px){.chart-grid{grid-template-columns:1fr;}.chart-card.span2{grid-column:span 1;}}
+#vistaGraficos{padding:14px 18px;overflow:auto;flex:1;min-height:0;background:#f8fafc;}
+
+/* KPI cards */
+.kpi-grid{display:grid;grid-template-columns:repeat(4,1fr);gap:12px;margin-bottom:14px;}
+.kpi-card{background:#fff;border-radius:10px;border:1px solid var(--border,#e2e8f0);padding:12px 14px;display:flex;flex-direction:column;gap:3px;border-left:3px solid var(--blue,#2563eb);}
+.kpi-card.k-purple{border-left-color:#7c3aed;}
+.kpi-card.k-green{border-left-color:#059669;}
+.kpi-card.k-amber{border-left-color:#d97706;}
+.kpi-label{font-size:.7rem;color:var(--ink-3,#94a3b8);text-transform:uppercase;letter-spacing:.04em;font-weight:600;}
+.kpi-value{font-size:1.35rem;font-weight:700;color:var(--ink-1,#1e293b);font-family:var(--mono,'JetBrains Mono',monospace);line-height:1.1;}
+.kpi-sub{font-size:.7rem;color:var(--ink-3,#94a3b8);}
+
+/* Chart grid 4x2 */
+.chart-grid{display:grid;grid-template-columns:repeat(4,1fr);gap:12px;}
+.chart-card{background:#fff;border-radius:10px;border:1px solid var(--border,#e2e8f0);padding:10px 12px 8px;display:flex;flex-direction:column;min-width:0;}
+.chart-ttl{font-weight:600;font-size:.76rem;color:var(--ink-1,#1e293b);margin-bottom:6px;display:flex;align-items:center;gap:5px;line-height:1.2;}
+.chart-ttl i{font-size:.72rem;color:var(--ink-3,#94a3b8);}
+.chart-sub{font-size:.65rem;color:var(--ink-3,#94a3b8);font-weight:400;margin-left:auto;}
+.chart-body{position:relative;height:180px;width:100%;}
+.chart-body canvas{max-width:100%;}
+.chart-empty{display:flex;align-items:center;justify-content:center;height:180px;color:var(--ink-3,#94a3b8);font-size:.78rem;}
+
+@media(max-width:1280px){
+    .chart-grid{grid-template-columns:repeat(2,1fr);}
+    .kpi-grid{grid-template-columns:repeat(4,1fr);}
+}
+@media(max-width:768px){
+    .chart-grid{grid-template-columns:1fr;}
+    .kpi-grid{grid-template-columns:repeat(2,1fr);}
+}
 </style>
 </head>
 <body>
@@ -271,9 +303,10 @@ $etapas_json = json_encode($etapas);
     </form>
 
     <div class="view-toggle">
-        <button type="button" class="vtb" id="vtbKanban"   onclick="setVista('kanban')"   title="Vista Kanban"><i class="fas fa-th-large"></i></button>
-        <button type="button" class="vtb" id="vtbLista"    onclick="setVista('lista')"    title="Vista Lista"><i class="fas fa-list"></i></button>
-        <button type="button" class="vtb" id="vtbGraficos" onclick="setVista('graficos')" title="Gráficos"><i class="fas fa-chart-bar"></i></button>
+        <button type="button" class="vtb" id="vtbKanban"      onclick="setVista('kanban')"      title="Kanban"><i class="fas fa-th-large"></i></button>
+        <button type="button" class="vtb" id="vtbLista"       onclick="setVista('lista')"       title="Lista"><i class="fas fa-list"></i></button>
+        <button type="button" class="vtb" id="vtbCalendario"  onclick="setVista('calendario')"  title="Calendario"><i class="fas fa-calendar-alt"></i></button>
+        <button type="button" class="vtb" id="vtbGraficos"    onclick="setVista('graficos')"    title="Gráficos"><i class="fas fa-chart-bar"></i></button>
     </div>
 
     <span class="toolbar-meta">
@@ -282,111 +315,221 @@ $etapas_json = json_encode($etapas);
     </span>
 </div>
 
+<!-- ═══════════════════════════════════════════════════════
+     VISTA KANBAN
+═══════════════════════════════════════════════════════ -->
 <div class="kanban-scroll" id="vistaKanban">
-<div class="kanban-board" id="kanbanBoard">
+    <div class="kanban-board" id="kanbanBoard">
 
-<?php foreach ($por_etapa as $eid => $grupo):
-    $etapa = $grupo['etapa'];
-    $color = $grupo['color'];
-    $items = $grupo['items'];
-    $count = count($items);
-    $total = $grupo['total'];
-?>
-<div class="k-col" data-etapa="<?= $eid ?>">
+    <?php foreach ($por_etapa as $eid => $grupo):
+        $etapa = $grupo['etapa'];
+        $color = $grupo['color'];
+        $items = $grupo['items'];
+        $count = count($items);
+        $total = $grupo['total'];
+    ?>
+    <div class="k-col" data-etapa="<?= $eid ?>">
 
-    <div class="k-col-head" style="background:<?= $color ?>;">
-        <div class="hrow">
-            <span class="hname"><?= htmlspecialchars($etapa['nombre']) ?></span>
-            <span class="k-badge"><?= $count ?></span>
+        <div class="k-col-head" style="background:<?= $color ?>;">
+            <div class="hrow">
+                <span class="hname"><?= htmlspecialchars($etapa['nombre']) ?></span>
+                <span class="k-badge"><?= $count ?></span>
+            </div>
+            <div class="htotal">
+                Bs <?= number_format($total, 2, ',', '.') ?> &middot; <?= $etapa['probabilidad'] ?>%
+            </div>
         </div>
-        <div class="htotal">
-            Bs <?= number_format($total, 2, ',', '.') ?> &middot; <?= $etapa['probabilidad'] ?>%
-        </div>
-    </div>
 
-    <div class="k-cards" data-etapa="<?= $eid ?>">
-        <?php if (empty($items)): ?>
-        <div class="col-empty">
-            <i class="fas fa-inbox" style="display:block;font-size:1.3rem;margin-bottom:4px;"></i>
-            Vacío
-        </div>
-        <?php endif; ?>
+        <div class="k-cards" data-etapa="<?= $eid ?>">
+            <?php if (empty($items)): ?>
+            <div class="col-empty">
+                <i class="fas fa-inbox" style="display:block;font-size:1.3rem;margin-bottom:4px;"></i>
+                Vacío
+            </div>
+            <?php endif; ?>
 
-        <?php foreach ($items as $op):
-            $parts = explode(' ', $op['nombre_usuario']);
-            $ini   = strtoupper(substr($parts[0], 0, 1) . (isset($parts[1]) ? substr($parts[1], 0, 1) : ''));
-            $chip_prox = '';
-            if ($op['proximo_paso_fecha']) {
-                $diff = (strtotime($op['proximo_paso_fecha']) - time()) / 86400;
-                if ($diff < 0)     $chip_prox = 'chip-prox-venc';
-                elseif ($diff < 1) $chip_prox = 'chip-prox-hoy';
-                else               $chip_prox = 'chip-prox-ok';
-            }
-        ?>
-        <div class="op-card"
-             data-id="<?= $op['id'] ?>"
-             draggable="true"
-             style="border-left-color:<?= $color ?>;"
-             onclick="verOp(<?= $op['id'] ?>)">
+            <?php foreach ($items as $op):
+                $parts = explode(' ', $op['nombre_usuario']);
+                $ini   = strtoupper(substr($parts[0], 0, 1) . (isset($parts[1]) ? substr($parts[1], 0, 1) : ''));
+                $chip_prox = '';
+                if ($op['proximo_paso_fecha']) {
+                    $diff = (strtotime($op['proximo_paso_fecha']) - time()) / 86400;
+                    if ($diff < 0)     $chip_prox = 'chip-prox-venc';
+                    elseif ($diff < 1) $chip_prox = 'chip-prox-hoy';
+                    else               $chip_prox = 'chip-prox-ok';
+                }
+            ?>
+            <div class="op-card"
+                 data-id="<?= $op['id'] ?>"
+                 draggable="true"
+                 style="border-left-color:<?= $color ?>;"
+                 onclick="verOp(<?= $op['id'] ?>)">
 
-            <div class="card-top">
-                <span class="card-num">#<?= str_pad($op['numero'], 4, '0', STR_PAD_LEFT) ?></span>
-                <span class="card-estado-dot dot-<?= $op['estado'] ?>" title="<?= $op['estado'] ?>"></span>
-            </div>
-            <div class="card-titulo"><?= htmlspecialchars($op['titulo']) ?></div>
-            <div class="card-cliente">
-                <i class="fas fa-building" style="font-size:.7rem;flex-shrink:0;"></i>
-                <?= htmlspecialchars($op['cliente_nombre']) ?>
-            </div>
-            <div class="card-monto">Bs <?= number_format($op['monto_estimado'], 2, ',', '.') ?></div>
-            <div class="prob-bar">
-                <div class="prob-fill" style="width:<?= $etapa['probabilidad'] ?>%;background:<?= $color ?>;"></div>
-            </div>
-            <div class="card-chips">
-                <?php if ($op['num_presupuestos'] > 0): ?>
-                <span class="chip chip-pres"><i class="fas fa-file-alt"></i><?= $op['num_presupuestos'] ?></span>
-                <?php endif; ?>
-                <?php if ($op['num_actividades'] > 0): ?>
-                <span class="chip chip-act"><i class="fas fa-comments"></i><?= $op['num_actividades'] ?></span>
-                <?php endif; ?>
-                <?php if ($op['cliente_sector']): ?>
-                <span class="chip chip-sector"><?= htmlspecialchars(mb_substr($op['cliente_sector'], 0, 12)) ?></span>
-                <?php endif; ?>
-                <?php if ($chip_prox): ?>
-                <span class="chip <?= $chip_prox ?>">
-                    <i class="fas fa-calendar-check"></i>
-                    <?= date('d/m', strtotime($op['proximo_paso_fecha'])) ?>
-                </span>
-                <?php endif; ?>
-            </div>
-            <div class="card-footer">
-                <div class="avatar" title="<?= htmlspecialchars($op['nombre_usuario']) ?>"><?= $ini ?></div>
-                <div style="display:flex;align-items:center;gap:6px;">
-                    <?php if ($op['proteccion']): ?>
-                    <span class="card-prot" title="Protección: <?= htmlspecialchars($op['proteccion']) ?>">
-                        <i class="fas fa-shield-alt"></i>
+                <div class="card-top">
+                    <span class="card-num">#<?= str_pad($op['numero'], 4, '0', STR_PAD_LEFT) ?></span>
+                    <span class="card-estado-dot dot-<?= $op['estado'] ?>" title="<?= $op['estado'] ?>"></span>
+                </div>
+                <div class="card-titulo"><?= htmlspecialchars($op['titulo']) ?></div>
+                <div class="card-cliente">
+                    <i class="fas fa-building" style="font-size:.7rem;flex-shrink:0;"></i>
+                    <?= htmlspecialchars($op['cliente_nombre']) ?>
+                </div>
+                <div class="card-monto">Bs <?= number_format($op['monto_estimado'], 2, ',', '.') ?></div>
+                <div class="prob-bar">
+                    <div class="prob-fill" style="width:<?= $etapa['probabilidad'] ?>%;background:<?= $color ?>;"></div>
+                </div>
+                <div class="card-chips">
+                    <?php if ($op['num_presupuestos'] > 0): ?>
+                    <span class="chip chip-pres"><i class="fas fa-file-alt"></i><?= $op['num_presupuestos'] ?></span>
+                    <?php endif; ?>
+                    <?php if ($op['num_actividades'] > 0): ?>
+                    <span class="chip chip-act"><i class="fas fa-comments"></i><?= $op['num_actividades'] ?></span>
+                    <?php endif; ?>
+                    <?php if ($op['cliente_sector']): ?>
+                    <span class="chip chip-sector"><?= htmlspecialchars(mb_substr($op['cliente_sector'], 0, 12)) ?></span>
+                    <?php endif; ?>
+                    <?php if ($chip_prox): ?>
+                    <span class="chip <?= $chip_prox ?>">
+                        <i class="fas fa-calendar-check"></i>
+                        <?= date('d/m', strtotime($op['proximo_paso_fecha'])) ?>
                     </span>
                     <?php endif; ?>
-                    <span style="font-family:var(--mono);font-size:.65rem;color:var(--ink-3);"><?= $etapa['probabilidad'] ?>%</span>
+                </div>
+                <div class="card-footer">
+                    <div class="avatar" title="<?= htmlspecialchars($op['nombre_usuario']) ?>"><?= $ini ?></div>
+                    <div style="display:flex;align-items:center;gap:6px;">
+                        <?php if ($op['proteccion']): ?>
+                        <span class="card-prot" title="Protección: <?= htmlspecialchars($op['proteccion']) ?>">
+                            <i class="fas fa-shield-alt"></i>
+                        </span>
+                        <?php endif; ?>
+                        <span style="font-family:var(--mono);font-size:.65rem;color:var(--ink-3);"><?= $etapa['probabilidad'] ?>%</span>
+                    </div>
                 </div>
             </div>
+            <?php endforeach; ?>
         </div>
-        <?php endforeach; ?>
+
+        <?php if ($puede_crear): ?>
+        <button class="k-add" onclick="abrirNuevo(<?= $eid ?>)">
+            <i class="fas fa-plus"></i> Agregar
+        </button>
+        <?php endif; ?>
+
+    </div>
+    <?php endforeach; ?>
+
+    </div>
+</div>
+
+<!-- ═══════════════════════════════════════════════════════
+     VISTA LISTA
+═══════════════════════════════════════════════════════ -->
+<div id="vistaLista" style="display:none;">
+    <table class="op-table">
+        <thead>
+            <tr>
+                <th class="sortable" onclick="sortTabla(0)">N°<span class="si" id="si0"></span></th>
+                <th class="sortable" onclick="sortTabla(1)">Título<span class="si" id="si1"></span></th>
+                <th class="sortable" onclick="sortTabla(2)">Cliente<span class="si" id="si2"></span></th>
+                <th class="sortable" onclick="sortTabla(3)">Etapa<span class="si" id="si3"></span></th>
+                <th class="sortable" onclick="sortTabla(4)" style="text-align:right;">Monto<span class="si" id="si4"></span></th>
+                <th class="sortable" onclick="sortTabla(5)">Vendedor<span class="si" id="si5"></span></th>
+                <th class="sortable" onclick="sortTabla(6)">Cierre<span class="si" id="si6"></span></th>
+                <th class="sortable" onclick="sortTabla(7)">Estado<span class="si" id="si7"></span></th>
+            </tr>
+        </thead>
+        <tbody id="opTableBody"></tbody>
+    </table>
+</div>
+
+<!-- VISTA CALENDARIO -->
+<div id="vistaCalendario" style="display:none;">
+    <div class="cal-toolbar">
+        <button class="cal-nav-btn" onclick="calNav(-1)"><i class="fas fa-chevron-left"></i></button>
+        <button class="cal-nav-btn" onclick="calHoy()" title="Hoy" style="width:auto;padding:0 10px;font-size:.78rem;">Hoy</button>
+        <button class="cal-nav-btn" onclick="calNav(1)"><i class="fas fa-chevron-right"></i></button>
+        <h3 id="calTitulo">—</h3>
+        <div class="cal-mode-toggle">
+            <button class="cal-mode-btn active" id="calModeMes"    onclick="setCalMode('mes')">Mes</button>
+            <button class="cal-mode-btn"        id="calModeSemana" onclick="setCalMode('semana')">Semana</button>
+        </div>
+    </div>
+    <div id="calContenido"></div>
+</div>
+
+<!-- ═══════════════════════════════════════════════════════
+     VISTA GRÁFICOS
+═══════════════════════════════════════════════════════ -->
+<div id="vistaGraficos" style="display:none;">
+
+    <!-- KPIs -->
+    <div class="kpi-grid">
+        <div class="kpi-card">
+            <span class="kpi-label">Pipeline Activo</span>
+            <span class="kpi-value" id="kpiPipeline">Bs 0</span>
+            <span class="kpi-sub" id="kpiPipelineSub">0 oportunidades</span>
+        </div>
+        <div class="kpi-card k-purple">
+            <span class="kpi-label">Pipeline Ponderado</span>
+            <span class="kpi-value" id="kpiPonderado">Bs 0</span>
+            <span class="kpi-sub">monto × probabilidad</span>
+        </div>
+        <div class="kpi-card k-green">
+            <span class="kpi-label">Win Rate</span>
+            <span class="kpi-value" id="kpiWinRate">0%</span>
+            <span class="kpi-sub" id="kpiWinRateSub">0 ganadas / 0 cerradas</span>
+        </div>
+        <div class="kpi-card k-amber">
+            <span class="kpi-label">Ticket Promedio</span>
+            <span class="kpi-value" id="kpiTicket">Bs 0</span>
+            <span class="kpi-sub">por oportunidad activa</span>
+        </div>
     </div>
 
-    <?php if ($puede_crear): ?>
-    <button class="k-add" onclick="abrirNuevo(<?= $eid ?>)">
-        <i class="fas fa-plus"></i> Agregar
-    </button>
-    <?php endif; ?>
+    <!-- Charts 4x2 -->
+    <div class="chart-grid">
+        <div class="chart-card">
+            <div class="chart-ttl"><i class="fas fa-filter"></i> Embudo por Etapa</div>
+            <div class="chart-body"><canvas id="chartEmbudo"></canvas></div>
+        </div>
+        <div class="chart-card">
+            <div class="chart-ttl"><i class="fas fa-users"></i> Por Vendedor <span class="chart-sub">cant.</span></div>
+            <div class="chart-body"><canvas id="chartVendedor"></canvas></div>
+        </div>
+        <div class="chart-card">
+            <div class="chart-ttl"><i class="fas fa-coins"></i> Monto / Vendedor <span class="chart-sub">Bs</span></div>
+            <div class="chart-body"><canvas id="chartMonto"></canvas></div>
+        </div>
+        <div class="chart-card">
+            <div class="chart-ttl"><i class="fas fa-chart-pie"></i> Por Estado</div>
+            <div class="chart-body"><canvas id="chartEstado"></canvas></div>
+        </div>
 
+        <div class="chart-card">
+            <div class="chart-ttl"><i class="fas fa-trophy"></i> Top 5 Clientes <span class="chart-sub">Bs</span></div>
+            <div class="chart-body"><canvas id="chartTopClientes"></canvas></div>
+        </div>
+        <div class="chart-card">
+            <div class="chart-ttl"><i class="fas fa-calendar-alt"></i> Cierres Próximos <span class="chart-sub">6 meses</span></div>
+            <div class="chart-body"><canvas id="chartCierres"></canvas></div>
+        </div>
+        <div class="chart-card">
+            <div class="chart-ttl"><i class="fas fa-store"></i> Por Sucursal</div>
+            <div class="chart-body"><canvas id="chartSucursal"></canvas></div>
+        </div>
+        <div class="chart-card">
+            <div class="chart-ttl"><i class="fas fa-hourglass-half"></i> Antigüedad <span class="chart-sub">días en pipeline</span></div>
+            <div class="chart-body"><canvas id="chartAntiguedad"></canvas></div>
+        </div>
+    </div>
 </div>
-<?php endforeach; ?>
 
-</div>
-</div>
-</div>
+</div><!-- /.shell -->
 
+<!-- ═══════════════════════════════════════════════════════
+     MODAL
+═══════════════════════════════════════════════════════ -->
 <div class="overlay" id="overlay">
 <div class="modal" id="modal">
 
@@ -459,7 +602,7 @@ $etapas_json = json_encode($etapas);
 
         <div class="fg">
             <label>Protección ID</label>
-            <input type="text" name="proteccion" id="fProteccion" placeholder="Ej: Exclusividad, Referido…">
+            <input type="text" name="proteccion" id="fProteccion" placeholder="Ej: Dell ID">
         </div>
 
         <div class="fg">
@@ -480,7 +623,7 @@ $etapas_json = json_encode($etapas);
     </div>
 
     <!-- ── TAB ACTIVIDADES ── -->
-       <div class="tab-panel" id="tact">
+    <div class="tab-panel" id="tact">
         <div class="act-list" id="listaAct">
             <div class="col-empty" style="padding:24px 0;">
                 <i class="fas fa-comments" style="font-size:1.6rem;display:block;margin-bottom:5px;"></i>
@@ -501,21 +644,43 @@ $etapas_json = json_encode($etapas);
                     </select>
                 </div>
                 <div class="fg">
-                    <label>Fecha de la actividad *</label>
-                    <input type="datetime-local" id="actFechaProx">
+                    <label>Inicio *</label>
+                    <input type="datetime-local" id="actFechaIni">
+                </div>
+                <div class="fg">
+                    <label>Fin *</label>
+                    <input type="datetime-local" id="actFechaFin">
+                </div>
+                <div class="fg">
+                    <label>Duración rápida</label>
+                    <select id="actDurPreset" onchange="aplicarPresetDuracion()">
+                        <option value="">Personalizada</option>
+                        <option value="15">15 min</option>
+                        <option value="30" selected>30 min</option>
+                        <option value="45">45 min</option>
+                        <option value="60">1 hora</option>
+                        <option value="90">1.5 horas</option>
+                        <option value="120">2 horas</option>
+                    </select>
+                </div>
+                <div class="fg span2">
+                    <label>Invitados <span style="color:var(--ink-3);font-weight:400;">(además de ti)</span></label>
+                    <div class="invitados-wrap">
+                        <div class="invitados-chips" id="invitadosChips"></div>
+                        <input type="text" id="invitadosSearch" placeholder="Escribe para agregar usuarios…"
+                            onkeydown="invitadosKeydown(event)" oninput="filtrarInvitados()"
+                            onfocus="filtrarInvitados()" onblur="setTimeout(()=>document.getElementById('invitadosDropdown').classList.remove('open'),180)">
+                        <div class="invitados-dropdown" id="invitadosDropdown"></div>
+                    </div>
                 </div>
                 <div class="fg span2">
                     <label>Descripción / Agenda</label>
                     <textarea id="actProximo" style="min-height:44px;" placeholder="¿Qué está planificado?"></textarea>
                 </div>
-                <div class="fg span2">
-                    <label>Resultado <span style="color:var(--ink-3);font-weight:400;">(opcional — si ya ocurrió)</span></label>
-                    <textarea id="actResultado" style="min-height:50px;" placeholder="¿Qué ocurrió?"></textarea>
-                </div>
+
             </div>
             <div style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:8px;margin-top:4px;">
-                <label id="labelOutlookCheck"
-                       style="display:none;align-items:center;gap:7px;font-size:.8rem;color:var(--ink-2);cursor:pointer;">
+                <label id="labelOutlookCheck" style="display:none;align-items:center;gap:7px;font-size:.8rem;color:var(--ink-2);cursor:pointer;">
                     <input type="checkbox" id="chkOutlook" style="accent-color:var(--blue);width:15px;height:15px;">
                     <i class="fas fa-calendar-check" style="color:var(--blue);"></i>
                     Agregar al calendario de Outlook
@@ -595,6 +760,9 @@ const PUEDE_CREAR_PRESUPUESTO = <?= json_encode($puede_crear_presupuesto) ?>;
 let opId = null;
 let opClienteId = null;
 
+const USUARIOS_INVITABLES = <?= json_encode($usuarios_invitables) ?>;
+const MI_USUARIO_ID = <?= json_encode($uid) ?>;
+
 /* ── Datos para lista y gráficos ── */
 const VISTAS_DATA = <?= $datos_vistas_json ?>;
 const ETAPA_COLORES = {<?php foreach ($etapas as $i => $e): ?>
@@ -608,17 +776,29 @@ let vistaActual = localStorage.getItem('op_vista') || 'kanban';
 let chartInst   = {};
 let sortDir     = {};
 
+let calMode    = 'mes';
+let calCursor  = new Date();
+let calData    = [];
+let invitadosSel = [];
+let invHighlight = -1;
+
 function setVista(v) {
     vistaActual = v;
     localStorage.setItem('op_vista', v);
-    document.getElementById('vistaKanban').style.display   = v === 'kanban'   ? '' : 'none';
-    document.getElementById('vistaLista').style.display    = v === 'lista'    ? '' : 'none';
-    document.getElementById('vistaGraficos').style.display = v === 'graficos' ? '' : 'none';
+    const elK  = document.getElementById('vistaKanban');
+    const elL  = document.getElementById('vistaLista');
+    const elC  = document.getElementById('vistaCalendario');
+    const elG  = document.getElementById('vistaGraficos');
+    if (elK) elK.style.display = v === 'kanban'      ? '' : 'none';
+    if (elL) elL.style.display = v === 'lista'       ? '' : 'none';
+    if (elC) elC.style.display = v === 'calendario'  ? '' : 'none';
+    if (elG) elG.style.display = v === 'graficos'    ? '' : 'none';
     document.querySelectorAll('.vtb').forEach(b => b.classList.remove('active'));
     const btn = document.getElementById('vtb' + v.charAt(0).toUpperCase() + v.slice(1));
     if (btn) btn.classList.add('active');
-    if (v === 'lista')    renderLista();
-    if (v === 'graficos') renderGraficos();
+    if (v === 'lista')       renderLista();
+    if (v === 'calendario')  cargarCalendario();
+    if (v === 'graficos')    renderGraficos();
 }
 
 /* ── Lista ── */
@@ -657,7 +837,7 @@ function sortTabla(col) {
     if (si) si.textContent = asc ? ' ↑' : ' ↓';
 }
 
-/* ── Gráficos ── */
+/* ── KPIs y Gráficos ── */
 function aggBy(campo) {
     const m = {};
     VISTAS_DATA.forEach(o => {
@@ -670,16 +850,89 @@ function aggBy(campo) {
     return m;
 }
 
+function bsCompact(n) {
+    n = parseFloat(n) || 0;
+    if (n >= 1e6) return 'Bs ' + (n/1e6).toFixed(1).replace('.0','') + 'M';
+    if (n >= 1e3) return 'Bs ' + (n/1e3).toFixed(1).replace('.0','') + 'K';
+    return 'Bs ' + Math.round(n).toLocaleString('es-BO');
+}
+
+function renderKPIs() {
+    const activos  = VISTAS_DATA.filter(o => o.estado === 'Activo');
+    const ganados  = VISTAS_DATA.filter(o => o.estado === 'Ganado');
+    const perdidos = VISTAS_DATA.filter(o => o.estado === 'Perdido');
+
+    const totalActivo = activos.reduce((s, o) => s + parseFloat(o.monto_estimado || 0), 0);
+    const ponderado   = activos.reduce((s, o) =>
+        s + parseFloat(o.monto_estimado || 0) * (parseFloat(o.etapa_probabilidad || 0) / 100), 0);
+    const cerradas    = ganados.length + perdidos.length;
+    const winRate     = cerradas > 0 ? Math.round(ganados.length * 100 / cerradas) : 0;
+    const ticket      = activos.length > 0 ? totalActivo / activos.length : 0;
+
+    document.getElementById('kpiPipeline').textContent     = bsCompact(totalActivo);
+    document.getElementById('kpiPipelineSub').textContent  = `${activos.length} oportunidad${activos.length !== 1 ? 'es' : ''}`;
+    document.getElementById('kpiPonderado').textContent    = bsCompact(ponderado);
+    document.getElementById('kpiWinRate').textContent      = winRate + '%';
+    document.getElementById('kpiWinRateSub').textContent   = `${ganados.length} ganadas / ${cerradas} cerradas`;
+    document.getElementById('kpiTicket').textContent       = bsCompact(ticket);
+}
+
+/* Opciones comunes para charts compactos */
+const CHART_BASE_OPTS = {
+    responsive: true,
+    maintainAspectRatio: false,
+    plugins: {
+        legend: { display: false },
+        tooltip: { titleFont:{size:11}, bodyFont:{size:11}, padding:6 }
+    },
+    scales: {
+        x: { ticks:{ font:{size:10}, color:'#64748b' }, grid:{ color:'#f1f5f9' } },
+        y: { ticks:{ font:{size:10}, color:'#64748b' }, grid:{ color:'#f1f5f9' } }
+    }
+};
+
+function makeChart(canvasId, config) {
+    const cv = document.getElementById(canvasId);
+    if (!cv) return null;
+    return new Chart(cv, config);
+}
+
 function renderGraficos() {
     Object.values(chartInst).forEach(c => { try { c.destroy(); } catch(_){} });
     chartInst = {};
 
+    renderKPIs();
+
     const PAL = ['#3b82f6','#7c3aed','#d97706','#059669','#0891b2','#dc2626','#475569','#f59e0b','#10b981'];
 
-    // — Por Vendedor (stacked, horizontal)
+    /* ── 1. Embudo por Etapa (horizontal, ordenado) ── */
+    const de   = aggBy('etapa_nombre');
+    const etNm = Object.keys(de);
+    chartInst.embudo = makeChart('chartEmbudo', {
+        type: 'bar',
+        data: {
+            labels: etNm,
+            datasets: [{
+                data: etNm.map(e => de[e].count),
+                backgroundColor: etNm.map(e => ETAPA_COLORES[e] || '#475569'),
+                borderRadius: 4
+            }]
+        },
+        options: { ...CHART_BASE_OPTS, indexAxis:'y',
+            scales: {
+                x:{ ...CHART_BASE_OPTS.scales.x, beginAtZero:true, ticks:{ ...CHART_BASE_OPTS.scales.x.ticks, stepSize:1, precision:0 } },
+                y:{ ...CHART_BASE_OPTS.scales.y, ticks:{ ...CHART_BASE_OPTS.scales.y.ticks, font:{size:9} } }
+            },
+            plugins: { ...CHART_BASE_OPTS.plugins,
+                tooltip: { callbacks: { label: ctx =>
+                    `${ctx.raw} oport. · ${bsCompact(de[ctx.label].monto)}` } } }
+        }
+    });
+
+    /* ── 2. Por Vendedor (stacked horizontal) ── */
     const dv   = aggBy('nombre_usuario');
     const vend = Object.keys(dv);
-    chartInst.vendedor = new Chart(document.getElementById('chartVendedor'), {
+    chartInst.vendedor = makeChart('chartVendedor', {
         type: 'bar',
         data: {
             labels: vend,
@@ -689,51 +942,179 @@ function renderGraficos() {
                 { label:'Perdido', data: vend.map(v => dv[v].Perdido), backgroundColor:'#dc2626' },
             ]
         },
-        options: { indexAxis:'y', responsive:true, plugins:{ legend:{ position:'top' } },
-                   scales:{ x:{ stacked:true, ticks:{ stepSize:1 } }, y:{ stacked:true } } }
+        options: { ...CHART_BASE_OPTS, indexAxis:'y',
+            plugins: { ...CHART_BASE_OPTS.plugins, legend:{ display:true, position:'bottom', labels:{ font:{size:10}, boxWidth:10, padding:6 } } },
+            scales: {
+                x: { ...CHART_BASE_OPTS.scales.x, stacked:true, beginAtZero:true, ticks:{ ...CHART_BASE_OPTS.scales.x.ticks, stepSize:1, precision:0 } },
+                y: { ...CHART_BASE_OPTS.scales.y, stacked:true, ticks:{ ...CHART_BASE_OPTS.scales.y.ticks, font:{size:9} } }
+            }
+        }
     });
 
-    // — Por Etapa (vertical bar)
-    const de   = aggBy('etapa_nombre');
-    const etNm = Object.keys(de);
-    chartInst.etapa = new Chart(document.getElementById('chartEtapa'), {
-        type: 'bar',
-        data: {
-            labels: etNm,
-            datasets: [{ label:'Oportunidades', data: etNm.map(e => de[e].count),
-                         backgroundColor: etNm.map(e => ETAPA_COLORES[e] || '#475569') }]
-        },
-        options: { responsive:true, plugins:{ legend:{ display:false } },
-                   scales:{ y:{ beginAtZero:true, ticks:{ stepSize:1 } } } }
-    });
-
-    // — Por Estado (donut)
-    const est = { Activo:0, Ganado:0, Perdido:0 };
-    VISTAS_DATA.forEach(o => { if (o.estado in est) est[o.estado]++; });
-    chartInst.estado = new Chart(document.getElementById('chartEstado'), {
-        type: 'doughnut',
-        data: {
-            labels: ['Activo','Ganado','Perdido'],
-            datasets: [{ data:[est.Activo, est.Ganado, est.Perdido],
-                         backgroundColor:['#3b82f6','#059669','#dc2626'], borderWidth:2 }]
-        },
-        options: { responsive:true,
-                   plugins:{ legend:{ position:'bottom' },
-                              tooltip:{ callbacks:{ label: ctx =>
-                                  ` ${ctx.label}: ${ctx.raw} (${VISTAS_DATA.length ? Math.round(ctx.raw*100/VISTAS_DATA.length) : 0}%)`
-                              } } } }
-    });
-
-    // — Monto por Vendedor (horizontal bar)
-    chartInst.monto = new Chart(document.getElementById('chartMonto'), {
+    /* ── 3. Monto por Vendedor (horizontal) ── */
+    chartInst.monto = makeChart('chartMonto', {
         type: 'bar',
         data: {
             labels: vend,
-            datasets: [{ label:'Monto (Bs)', data: vend.map(v => Math.round(dv[v].monto)),
-                         backgroundColor: vend.map((_, i) => PAL[i % PAL.length]) }]
+            datasets: [{
+                data: vend.map(v => Math.round(dv[v].monto)),
+                backgroundColor: vend.map((_, i) => PAL[i % PAL.length]),
+                borderRadius: 4
+            }]
         },
-        options: { indexAxis:'y', responsive:true, plugins:{ legend:{ display:false } },
-                   scales:{ x:{ ticks:{ callback: v => 'Bs ' + v.toLocaleString('es-BO') } } } }
+        options: { ...CHART_BASE_OPTS, indexAxis:'y',
+            scales: {
+                x: { ...CHART_BASE_OPTS.scales.x, ticks:{ ...CHART_BASE_OPTS.scales.x.ticks, callback: v => bsCompact(v) } },
+                y: { ...CHART_BASE_OPTS.scales.y, ticks:{ ...CHART_BASE_OPTS.scales.y.ticks, font:{size:9} } }
+            },
+            plugins: { ...CHART_BASE_OPTS.plugins,
+                tooltip: { callbacks: { label: ctx => bsCompact(ctx.raw) } } }
+        }
+    });
+
+    /* ── 4. Por Estado (donut) ── */
+    const est = { Activo:0, Ganado:0, Perdido:0 };
+    VISTAS_DATA.forEach(o => { if (o.estado in est) est[o.estado]++; });
+    chartInst.estado = makeChart('chartEstado', {
+        type: 'doughnut',
+        data: {
+            labels: ['Activo','Ganado','Perdido'],
+            datasets: [{
+                data:[est.Activo, est.Ganado, est.Perdido],
+                backgroundColor:['#3b82f6','#059669','#dc2626'], borderWidth:2
+            }]
+        },
+        options: {
+            responsive:true, maintainAspectRatio:false, cutout:'62%',
+            plugins:{
+                legend:{ position:'bottom', labels:{ font:{size:10}, boxWidth:10, padding:6 } },
+                tooltip:{ callbacks:{ label: ctx => {
+                    const total = est.Activo + est.Ganado + est.Perdido;
+                    const pct   = total ? Math.round(ctx.raw*100/total) : 0;
+                    return ` ${ctx.label}: ${ctx.raw} (${pct}%)`;
+                } } }
+            }
+        }
+    });
+
+    /* ── 5. Top 5 Clientes ── */
+    const dc = aggBy('cliente_nombre');
+    const topClientes = Object.entries(dc)
+        .sort((a, b) => b[1].monto - a[1].monto).slice(0, 5);
+    chartInst.topCli = makeChart('chartTopClientes', {
+        type: 'bar',
+        data: {
+            labels: topClientes.map(([n]) => n.length > 18 ? n.slice(0,16) + '…' : n),
+            datasets: [{
+                data: topClientes.map(([, d]) => Math.round(d.monto)),
+                backgroundColor: topClientes.map((_, i) => PAL[i % PAL.length]),
+                borderRadius: 4
+            }]
+        },
+        options: { ...CHART_BASE_OPTS, indexAxis:'y',
+            scales: {
+                x: { ...CHART_BASE_OPTS.scales.x, ticks:{ ...CHART_BASE_OPTS.scales.x.ticks, callback: v => bsCompact(v) } },
+                y: { ...CHART_BASE_OPTS.scales.y, ticks:{ ...CHART_BASE_OPTS.scales.y.ticks, font:{size:9} } }
+            },
+            plugins: { ...CHART_BASE_OPTS.plugins,
+                tooltip: { callbacks: {
+                    title: ctx => topClientes[ctx[0].dataIndex][0],
+                    label: ctx => `${bsCompact(ctx.raw)} · ${topClientes[ctx.dataIndex][1].count} oport.`
+                } } }
+        }
+    });
+
+    /* ── 6. Cierres Próximos (6 meses) ── */
+    const meses = [];
+    const hoy = new Date();
+    for (let i = 0; i < 6; i++) {
+        const d = new Date(hoy.getFullYear(), hoy.getMonth() + i, 1);
+        meses.push({
+            key:   d.getFullYear() + '-' + String(d.getMonth()+1).padStart(2,'0'),
+            label: d.toLocaleDateString('es-BO', {month:'short', year:'2-digit'}),
+            count: 0, monto: 0
+        });
+    }
+    VISTAS_DATA.forEach(o => {
+        if (!o.fecha_cierre || o.estado !== 'Activo') return;
+        const k = o.fecha_cierre.slice(0,7);
+        const m = meses.find(x => x.key === k);
+        if (m) { m.count++; m.monto += parseFloat(o.monto_estimado || 0); }
+    });
+    chartInst.cierres = makeChart('chartCierres', {
+        type: 'bar',
+        data: {
+            labels: meses.map(m => m.label),
+            datasets: [{
+                data: meses.map(m => Math.round(m.monto)),
+                backgroundColor:'#3b82f6', borderRadius:4
+            }]
+        },
+        options: { ...CHART_BASE_OPTS,
+            scales: {
+                x: { ...CHART_BASE_OPTS.scales.x },
+                y: { ...CHART_BASE_OPTS.scales.y, beginAtZero:true,
+                     ticks:{ ...CHART_BASE_OPTS.scales.y.ticks, callback: v => bsCompact(v) } }
+            },
+            plugins: { ...CHART_BASE_OPTS.plugins,
+                tooltip: { callbacks: { label: ctx =>
+                    `${bsCompact(ctx.raw)} · ${meses[ctx.dataIndex].count} oport.` } } }
+        }
+    });
+
+    /* ── 7. Por Sucursal ── */
+    const ds  = aggBy('sucursal_nombre');
+    const suc = Object.keys(ds);
+    chartInst.sucursal = makeChart('chartSucursal', {
+        type: 'bar',
+        data: {
+            labels: suc,
+            datasets: [{
+                data: suc.map(s => Math.round(ds[s].monto)),
+                backgroundColor: suc.map((_, i) => PAL[i % PAL.length]),
+                borderRadius: 4
+            }]
+        },
+        options: { ...CHART_BASE_OPTS, indexAxis:'y',
+            scales: {
+                x: { ...CHART_BASE_OPTS.scales.x, ticks:{ ...CHART_BASE_OPTS.scales.x.ticks, callback: v => bsCompact(v) } },
+                y: { ...CHART_BASE_OPTS.scales.y, ticks:{ ...CHART_BASE_OPTS.scales.y.ticks, font:{size:9} } }
+            },
+            plugins: { ...CHART_BASE_OPTS.plugins,
+                tooltip: { callbacks: { label: ctx =>
+                    `${bsCompact(ctx.raw)} · ${ds[suc[ctx.dataIndex]].count} oport.` } } }
+        }
+    });
+
+    /* ── 8. Antigüedad (días en pipeline) ── */
+    const buckets = { '0-30':0, '31-60':0, '61-90':0, '90+':0 };
+    const now = Date.now();
+    VISTAS_DATA.filter(o => o.estado === 'Activo' && o.fecha_creacion).forEach(o => {
+        const dias = Math.floor((now - new Date(o.fecha_creacion).getTime()) / 86400000);
+        if      (dias <= 30) buckets['0-30']++;
+        else if (dias <= 60) buckets['31-60']++;
+        else if (dias <= 90) buckets['61-90']++;
+        else                 buckets['90+']++;
+    });
+    chartInst.antig = makeChart('chartAntiguedad', {
+        type: 'bar',
+        data: {
+            labels: Object.keys(buckets),
+            datasets: [{
+                data: Object.values(buckets),
+                backgroundColor: ['#059669','#3b82f6','#d97706','#dc2626'],
+                borderRadius: 4
+            }]
+        },
+        options: { ...CHART_BASE_OPTS,
+            scales: {
+                x: { ...CHART_BASE_OPTS.scales.x },
+                y: { ...CHART_BASE_OPTS.scales.y, beginAtZero:true,
+                     ticks:{ ...CHART_BASE_OPTS.scales.y.ticks, stepSize:1, precision:0 } }
+            },
+            plugins: { ...CHART_BASE_OPTS.plugins,
+                tooltip: { callbacks: { label: ctx => `${ctx.raw} oport.` } } }
+        }
     });
 }
 
@@ -748,7 +1129,6 @@ let highlightIdx = -1;
 
 function filtrarClientes() {
     const q = document.getElementById('clienteSearch').value.toLowerCase().trim();
-    const dd = document.getElementById('clienteDropdown');
     highlightIdx = -1;
 
     if (!q) {
@@ -865,6 +1245,8 @@ function abrirNuevo(etapaId = null) {
     const boxCrear = document.getElementById('boxCrearPres');
     if (boxCrear) boxCrear.style.display = 'none';
 
+    setInvitadosIniciales([]);
+
     setTab(document.querySelector('.tab-btn'), 'tdatos');
     document.getElementById('overlay').classList.add('show');
     document.getElementById('fTitulo').focus();
@@ -920,6 +1302,8 @@ async function verOp(id) {
         if (btnDel) btnDel.style.display = 'inline-flex';
 
         renderActividades(d.actividades);
+        setInvitadosIniciales([]);
+
         renderPresupuestos(d.presupuestos);
 
         setTab(document.querySelector('.tab-btn[data-tab="tdatos"]'), 'tdatos');
@@ -932,6 +1316,7 @@ async function verOp(id) {
 
 /* ── Render actividades ────────────────────────────────── */
 const tipoIcon = { Llamada:'📞', Reunion:'🤝', Correo:'📧', 'Actualización de quote':'📋', Visita:'🏢' };
+
 function renderActividades(lista) {
     const div = document.getElementById('listaAct');
     if (!lista?.length) {
@@ -941,20 +1326,30 @@ function renderActividades(lista) {
         document.getElementById('badgeAct').textContent = '';
         return;
     }
-    div.innerHTML = lista.map(a => `
-            <div class="act-item" data-id="${a.id}" data-tipo="${esc(a.tipo)}">            <div class="act-row">
+    div.innerHTML = lista.map(a => {
+        const horario = a.fecha_fin
+            ? `${fmtDt(a.fecha_proximo_paso)} → ${new Date(a.fecha_fin).toLocaleTimeString('es-BO',{hour:'2-digit',minute:'2-digit'})}`
+            : fmtDt(a.fecha_proximo_paso);
+        const inv = a.invitados_nombres
+            ? `<div style="font-size:.74rem;color:var(--ink-2);margin-top:3px;"><i class="fas fa-users" style="font-size:.7rem;"></i> ${esc(a.invitados_nombres)}</div>`
+            : '';
+        const evtChip = a.eventos_creados > 0
+            ? ` <i class="fas fa-calendar-check" style="color:var(--blue);font-size:.75rem;margin-left:3px;" title="${a.eventos_creados} evento(s) en Outlook"></i>`
+            : '';
+        return `
+        <div class="act-item" data-id="${a.id}" data-tipo="${esc(a.tipo)}">
+            <div class="act-row">
                 <span>
                     <span class="act-tipo">${tipoIcon[a.tipo] || '•'} ${esc(a.tipo)}</span>
-                    <span class="act-who">${esc(a.nombre_usuario)}</span>
-                    ${a.ms_event_id ? ' <i class="fas fa-calendar-check" style="color:var(--blue);font-size:.75rem;margin-left:3px;" title="En calendario de Outlook"></i>' : ''}
+                    <span class="act-who">${esc(a.nombre_usuario)}</span>${evtChip}
                 </span>
                 <span class="act-ts">${fmtDt(a.fecha_creacion)}</span>
             </div>
             <div class="act-prox">
-                <i class="fas fa-calendar"></i>
-                <strong>Fecha:</strong> ${fmtDt(a.fecha_proximo_paso)}
+                <i class="fas fa-calendar"></i> <strong>Cuándo:</strong> ${horario}
                 ${a.proximo_paso ? `<span style="color:var(--ink-2);margin-left:4px;">· ${esc(a.proximo_paso)}</span>` : ''}
             </div>
+            ${inv}
             ${a.resultado
                 ? `<div class="act-body"><strong>Resultado:</strong> ${esc(a.resultado)}</div>`
                 : `<div style="margin-top:4px;">
@@ -967,20 +1362,18 @@ function renderActividades(lista) {
                                   style="width:100%;min-height:60px;box-sizing:border-box;border:1px solid var(--border);border-radius:6px;padding:6px;font-size:.82rem;resize:vertical;"
                                   placeholder="¿Qué ocurrió en esta actividad?"></textarea>
                         <div style="display:flex;gap:8px;margin-top:4px;">
-                            <button class="btn btn-green" style="font-size:.78rem;padding:4px 10px;"
-                                    onclick="guardarResultado(${a.id})">
+                            <button class="btn btn-green" style="font-size:.78rem;padding:4px 10px;" onclick="guardarResultado(${a.id})">
                                 <i class="fas fa-save"></i> Guardar
                             </button>
-                            <button class="btn btn-ghost" style="font-size:.78rem;padding:4px 10px;"
-                                    onclick="mostrarFormResultado(${a.id})">
+                            <button class="btn btn-ghost" style="font-size:.78rem;padding:4px 10px;" onclick="mostrarFormResultado(${a.id})">
                                 Cancelar
                             </button>
                         </div>
                     </div>
                   </div>`
             }
-        </div>
-    `).join('');
+        </div>`;
+    }).join('');
     document.getElementById('badgeAct').textContent = lista.length || '';
 }
 
@@ -1017,14 +1410,14 @@ function renderPresupuestos(lista) {
         document.getElementById('badgePres').textContent = '';
         return;
     }
-    
+
     const params = new URLSearchParams(window.location.search);
     const filtros = {};
     ['sucursal', 'usuario', 'estado', 'buscar', 'pagina'].forEach(key => {
         if (params.get(key)) filtros[key] = params.get(key);
     });
     const queryString = Object.keys(filtros).length > 0 ? '&' + new URLSearchParams(filtros).toString() : '';
-    
+
     div.innerHTML = lista.map(p => `
         <div class="pres-item">
             <div class="pres-info">
@@ -1033,7 +1426,7 @@ function renderPresupuestos(lista) {
             </div>
             <div class="pres-actions">
                 <span class="badge-estado badge-${p.estado}">${p.estado}</span>
-                <a href="ver_proyecto.php?id=${p.id_proyecto}&from=oportunidades${queryString}" 
+                <a href="ver_proyecto.php?id=${p.id_proyecto}&from=oportunidades${queryString}"
                    style="color:var(--blue);" title="Abrir presupuesto">
                     <i class="fas fa-external-link-alt"></i>
                 </a>
@@ -1080,7 +1473,7 @@ async function crearPresupuestoDesdeOp() {
             if (params.get(key)) filtros[key] = params.get(key);
         });
         const queryString = Object.keys(filtros).length > 0 ? '&' + new URLSearchParams(filtros).toString() : '';
-        
+
         window.location.href = `ver_proyecto.php?id=${d.id_proyecto}&from=oportunidades${queryString}`;
     } else {
         toast(d.message || 'Error al crear presupuesto', 'err');
@@ -1125,35 +1518,37 @@ async function eliminar() {
 /* ── Guardar actividad ─────────────────────────────────── */
 async function guardarActividad() {
     if (!opId) return;
-    const fechaProx = document.getElementById('actFechaProx').value;
-    if (!fechaProx) { toast('La fecha del próximo paso es obligatoria', 'err'); return; }
-    const enviarOutlook = document.getElementById('chkOutlook')?.checked ?? false;
+    const fechaIni = document.getElementById('actFechaIni').value;
+    const fechaFin = document.getElementById('actFechaFin').value;
+    if (!fechaIni) { toast('La fecha/hora de inicio es obligatoria', 'err'); return; }
+    if (!fechaFin) { toast('La fecha/hora de fin es obligatoria', 'err'); return; }
+    if (new Date(fechaFin) <= new Date(fechaIni)) {
+        toast('La hora fin debe ser posterior a la de inicio', 'err'); return;
+    }
     const payload = {
-        oportunidad_id:  opId,
-        tipo:            document.getElementById('actTipo').value,
-        resultado:       document.getElementById('actResultado').value,
-        proximo_paso:    document.getElementById('actProximo').value,
-        fecha_proximo_paso: fechaProx,
-        enviar_outlook:  enviarOutlook,
+        oportunidad_id:     opId,
+        tipo:               document.getElementById('actTipo').value,
+        resultado:          document.getElementById('actResultado').value,
+        proximo_paso:       document.getElementById('actProximo').value,
+        fecha_proximo_paso: fechaIni,
+        fecha_fin:          fechaFin,
+        enviar_outlook:     document.getElementById('chkOutlook')?.checked ?? false,
+        invitados:          invitadosSel,
     };
     const r = await fetch('crear_oportunidad.php?action=save_actividad', {
-        method: 'POST', headers: {'Content-Type':'application/json'}, body: JSON.stringify(payload)
+        method: 'POST', headers: {'Content-Type':'application/json'},
+        body: JSON.stringify(payload)
     });
     const d = await r.json();
     if (d.success) {
         document.getElementById('actResultado').value = '';
         document.getElementById('actProximo').value   = '';
-        document.getElementById('actFechaProx').value = '';
+        document.getElementById('actFechaIni').value  = '';
+        document.getElementById('actFechaFin').value  = '';
         if (document.getElementById('chkOutlook')) document.getElementById('chkOutlook').checked = false;
+        setInvitadosIniciales([]);
         renderActividades(d.actividades);
-
-        if (d.ms_event_creado) {
-            toast('✓ Actividad registrada y evento creado en Outlook 📅');
-        } else if (d.ms_error) {
-            toast('Actividad guardada. Exchange: ' + d.ms_error, 'err');
-        } else {
-            toast('Actividad registrada ✓');
-        }
+        toast(d.ms_resumen || 'Actividad registrada ✓', d.ms_errores?.length ? 'err' : 'ok');
     } else toast(d.message || 'Error', 'err');
 }
 
@@ -1266,7 +1661,18 @@ function esc(s) {
     return d.innerHTML;
 }
 
-// Inicializar estado Outlook al cargar la página
+function fmtDt(s) {
+    if (!s) return '';
+    return new Date(s).toLocaleString('es-BO', {
+        day:'2-digit', month:'short', year:'numeric', hour:'2-digit', minute:'2-digit'
+    });
+}
+
+function numFmt(n) {
+    return parseFloat(n || 0).toLocaleString('es-BO', {minimumFractionDigits:2, maximumFractionDigits:2});
+}
+
+// Inicializar vista y estado Outlook al cargar la página
 setVista(vistaActual);
 cargarEstadoOutlook();
 
@@ -1281,14 +1687,377 @@ cargarEstadoOutlook();
         history.replaceState({}, '', 'oportunidades.php');
     }
 })();
-function fmtDt(s) {
-    if (!s) return '';
-    return new Date(s).toLocaleString('es-BO', {
-        day:'2-digit', month:'short', year:'numeric', hour:'2-digit', minute:'2-digit'
+
+/* ════════════════════════════════════════════════════════════
+   INVITADOS — chips y dropdown
+════════════════════════════════════════════════════════════ */
+
+function setInvitadosIniciales(ids) {
+    // Asegurar que el creador está siempre incluido y no removible
+    invitadosSel = Array.from(new Set([MI_USUARIO_ID, ...(ids || [])]));
+    renderInvitadosChips();
+}
+
+function renderInvitadosChips() {
+    const cont = document.getElementById('invitadosChips');
+    cont.innerHTML = invitadosSel.map(id => {
+        const u = USUARIOS_INVITABLES.find(x => x.id == id);
+        if (!u) return '';
+        const esCreador = id === MI_USUARIO_ID;
+        return `<span class="inv-chip">${esc(u.nombre)}${esCreador ? '' :
+            `<span class="inv-chip-x" onclick="quitarInvitado(${id})">×</span>`}</span>`;
+    }).join('');
+}
+
+function quitarInvitado(id) {
+    if (id === MI_USUARIO_ID) return;
+    invitadosSel = invitadosSel.filter(x => x !== id);
+    renderInvitadosChips();
+}
+
+function filtrarInvitados() {
+    const q = document.getElementById('invitadosSearch').value.toLowerCase().trim();
+    const dd = document.getElementById('invitadosDropdown');
+    invHighlight = -1;
+    const disponibles = USUARIOS_INVITABLES.filter(u =>
+        !invitadosSel.includes(u.id) &&
+        (!q || u.nombre.toLowerCase().includes(q) || (u.email || '').toLowerCase().includes(q))
+    ).slice(0, 20);
+    if (!disponibles.length) {
+        dd.innerHTML = '<div class="inv-option" style="color:var(--ink-3);cursor:default;">Sin resultados</div>';
+    } else {
+        dd.innerHTML = disponibles.map((u, i) => `
+            <div class="inv-option" data-id="${u.id}" data-idx="${i}"
+                 onmousedown="agregarInvitado(${u.id})">
+                ${esc(u.nombre)}<div class="ie">${esc(u.email || '— sin email')}</div>
+            </div>`).join('');
+    }
+    dd.classList.add('open');
+}
+
+function agregarInvitado(id) {
+    if (!invitadosSel.includes(id)) {
+        invitadosSel.push(id);
+        renderInvitadosChips();
+    }
+    document.getElementById('invitadosSearch').value = '';
+    document.getElementById('invitadosDropdown').classList.remove('open');
+}
+
+function invitadosKeydown(e) {
+    const dd = document.getElementById('invitadosDropdown');
+    const opts = dd.querySelectorAll('.inv-option[data-id]');
+    if (e.key === 'ArrowDown') {
+        e.preventDefault();
+        invHighlight = Math.min(invHighlight + 1, opts.length - 1);
+        opts.forEach((o, i) => o.classList.toggle('highlighted', i === invHighlight));
+    } else if (e.key === 'ArrowUp') {
+        e.preventDefault();
+        invHighlight = Math.max(invHighlight - 1, 0);
+        opts.forEach((o, i) => o.classList.toggle('highlighted', i === invHighlight));
+    } else if (e.key === 'Enter') {
+        e.preventDefault();
+        if (invHighlight >= 0 && opts[invHighlight]) {
+            agregarInvitado(parseInt(opts[invHighlight].dataset.id));
+        }
+    } else if (e.key === 'Backspace' && !e.target.value && invitadosSel.length > 1) {
+        const last = invitadosSel[invitadosSel.length - 1];
+        if (last !== MI_USUARIO_ID) quitarInvitado(last);
+    }
+}
+
+/* ── Preset de duración ── */
+function aplicarPresetDuracion() {
+    const min = parseInt(document.getElementById('actDurPreset').value);
+    const ini = document.getElementById('actFechaIni').value;
+    if (!min || !ini) return;
+    const d = new Date(ini);
+    d.setMinutes(d.getMinutes() + min);
+    document.getElementById('actFechaFin').value = d.toISOString().slice(0,16);
+}
+
+// Cuando cambia inicio, ajustar fin si hay preset
+document.addEventListener('DOMContentLoaded', () => {
+    const ini = document.getElementById('actFechaIni');
+    if (ini) ini.addEventListener('change', aplicarPresetDuracion);
+});
+
+/* ════════════════════════════════════════════════════════════
+   CALENDARIO
+════════════════════════════════════════════════════════════ */
+
+function setCalMode(m) {
+    cerrarPopoverActividad();
+    calMode = m;
+    document.getElementById('calModeMes').classList.toggle('active', m === 'mes');
+    document.getElementById('calModeSemana').classList.toggle('active', m === 'semana');
+    cargarCalendario();
+}
+
+function calNav(dir) {
+    cerrarPopoverActividad();
+    if (calMode === 'mes') {
+        calCursor.setMonth(calCursor.getMonth() + dir);
+    } else {
+        calCursor.setDate(calCursor.getDate() + dir * 7);
+    }
+    cargarCalendario();
+}
+
+function calHoy() {
+    cerrarPopoverActividad();
+    calCursor = new Date();
+    cargarCalendario();
+}
+
+async function cargarCalendario() {
+    let desde, hasta;
+    if (calMode === 'mes') {
+        desde = new Date(calCursor.getFullYear(), calCursor.getMonth(), 1);
+        hasta = new Date(calCursor.getFullYear(), calCursor.getMonth() + 1, 0);
+    } else {
+        const dow = calCursor.getDay(); // 0=dom
+        const offsetMon = dow === 0 ? -6 : 1 - dow;
+        desde = new Date(calCursor); desde.setDate(calCursor.getDate() + offsetMon);
+        hasta = new Date(desde);     hasta.setDate(desde.getDate() + 6);
+    }
+    const fmt = d => d.toISOString().slice(0,10);
+    const r = await fetch(`crear_oportunidad.php?action=calendario&desde=${fmt(desde)} 00:00:00&hasta=${fmt(hasta)} 23:59:59`);
+    const d = await r.json();
+    calData = d.actividades || [];
+    renderCalendario();
+}
+
+function renderCalendario() {
+    const tit = document.getElementById('calTitulo');
+    if (calMode === 'mes') {
+        tit.textContent = calCursor.toLocaleDateString('es-BO', {month:'long', year:'numeric'});
+        renderCalMes();
+    } else {
+        renderCalSemana(tit);
+    }
+}
+
+function tipoClass(t) {
+    if (t === 'Actualización de quote') return 'cal-quote';
+    return 'cal-' + t;
+}
+
+function renderCalMes() {
+    const año = calCursor.getFullYear(), mes = calCursor.getMonth();
+    const primer = new Date(año, mes, 1);
+    const ultimo = new Date(año, mes + 1, 0);
+    const dowIni = primer.getDay() === 0 ? 6 : primer.getDay() - 1; // lunes=0
+    const totalDias = ultimo.getDate();
+    const hoy = new Date(); hoy.setHours(0,0,0,0);
+
+    // Indexar eventos por fecha YYYY-MM-DD
+    const porDia = {};
+    calData.forEach(a => {
+        const k = a.fecha_inicio.slice(0,10);
+        (porDia[k] = porDia[k] || []).push(a);
+    });
+
+    let html = `<div class="cal-month"><div class="cal-month-grid">`;
+    ['Lun','Mar','Mié','Jue','Vie','Sáb','Dom'].forEach(d => html += `<div class="cal-dow">${d}</div>`);
+
+    // Días del mes anterior para llenar la primera fila
+    const prevUlt = new Date(año, mes, 0).getDate();
+    for (let i = dowIni; i > 0; i--) {
+        html += `<div class="cal-day cal-other"><div class="cal-daynum">${prevUlt - i + 1}</div></div>`;
+    }
+
+    for (let d = 1; d <= totalDias; d++) {
+        const fecha = new Date(año, mes, d);
+        const k = fecha.toISOString().slice(0,10);
+        const isToday = fecha.getTime() === hoy.getTime();
+        const evs = porDia[k] || [];
+        html += `<div class="cal-day${isToday ? ' cal-today' : ''}">
+            <div class="cal-daynum">${d}</div>
+            ${evs.slice(0,3).map(e => `
+                <div class="cal-evt ${tipoClass(e.tipo)}" data-evt-id="${e.id}" title="${esc(e.tipo)} — ${esc(e.oportunidad_titulo)}">
+                    ${new Date(e.fecha_inicio).toLocaleTimeString('es-BO',{hour:'2-digit',minute:'2-digit'})}
+                    ${esc(e.oportunidad_titulo)}
+                </div>`).join('')}
+            ${evs.length > 3 ? `<div style="font-size:.65rem;color:var(--ink-3);padding:0 5px;">+${evs.length - 3} más</div>` : ''}
+        </div>`;
+    }
+
+    // Rellenar días sobrantes
+    const totalCeldas = dowIni + totalDias;
+    const restantes   = (7 - totalCeldas % 7) % 7;
+    for (let i = 1; i <= restantes; i++) {
+        html += `<div class="cal-day cal-other"><div class="cal-daynum">${i}</div></div>`;
+    }
+
+    html += `</div></div>`;
+    document.getElementById('calContenido').innerHTML = html;
+
+    // Bind clicks de eventos del mes al popover
+    document.querySelectorAll('#calContenido .cal-evt[data-evt-id]').forEach(el => {
+        el.addEventListener('click', e => {
+            e.stopPropagation();
+            const id = parseInt(el.dataset.evtId);
+            const evt = calData.find(x => x.id === id);
+            if (evt) abrirPopoverActividad(evt, el);
+        });
     });
 }
-function numFmt(n) {
-    return parseFloat(n || 0).toLocaleString('es-BO', {minimumFractionDigits:2, maximumFractionDigits:2});
+
+function renderCalSemana(tit) {
+    const dow = calCursor.getDay();
+    const offsetMon = dow === 0 ? -6 : 1 - dow;
+    const lun = new Date(calCursor); lun.setDate(calCursor.getDate() + offsetMon); lun.setHours(0,0,0,0);
+    const dom = new Date(lun); dom.setDate(lun.getDate() + 6);
+    tit.textContent = `${lun.toLocaleDateString('es-BO',{day:'numeric',month:'short'})} – ${dom.toLocaleDateString('es-BO',{day:'numeric',month:'short',year:'numeric'})}`;
+
+    const hoy = new Date(); hoy.setHours(0,0,0,0);
+    const dowsLbl = ['Lun','Mar','Mié','Jue','Vie','Sáb','Dom'];
+
+    let html = `<div class="cal-week">
+        <div class="cal-week-header">
+            <div class="cal-week-dow"></div>`;
+    for (let i = 0; i < 7; i++) {
+        const f = new Date(lun); f.setDate(lun.getDate() + i);
+        const isToday = f.getTime() === hoy.getTime();
+        html += `<div class="cal-week-dow${isToday ? ' cal-today' : ''}">${dowsLbl[i]}<span class="dnum">${f.getDate()}</span></div>`;
+    }
+    html += `</div><div class="cal-week-grid">`;
+
+    // Rejilla 7am-9pm (14 horas, 30min cada celda)
+    const horaIni = 7, horaFin = 21;
+    for (let h = horaIni; h < horaFin; h++) {
+        html += `<div class="cal-hour-row">
+            <div class="cal-hour-label">${String(h).padStart(2,'0')}:00</div>`;
+        for (let d = 0; d < 7; d++) html += `<div class="cal-hour-cell" data-d="${d}" data-h="${h}"></div>`;
+        html += `</div>`;
+    }
+    html += `</div></div>`;
+    document.getElementById('calContenido').innerHTML = html;
+
+    // Posicionar eventos sobre la rejilla
+    const grid = document.querySelector('.cal-week-grid');
+    if (!grid) return;
+    const cellH = 30; // px
+
+    calData.forEach(e => {
+        const d = new Date(e.fecha_inicio);
+        const dayIdx = (d.getDay() + 6) % 7; // lunes=0
+        const fIni = new Date(lun); fIni.setHours(0,0,0,0);
+        const fEvt = new Date(d);  fEvt.setHours(0,0,0,0);
+        if (fEvt < fIni || (fEvt - fIni) / 86400000 > 6) return;
+
+        const horas = d.getHours() + d.getMinutes() / 60;
+        if (horas < horaIni || horas >= horaFin) return;
+
+        const finDate = e.fecha_fin ? new Date(e.fecha_fin) : new Date(d.getTime() + 1800000);
+        const durMin  = Math.max(15, (finDate - d) / 60000);
+        const top     = (horas - horaIni) * 2 * cellH;
+        const height  = (durMin / 30) * cellH;
+
+        const cell = grid.querySelector(`.cal-hour-cell[data-d="${dayIdx}"][data-h="${horaIni}"]`);
+        if (!cell) return;
+        const colLeft = cell.offsetLeft;
+        const colW    = cell.offsetWidth;
+
+        const ev = document.createElement('div');
+        ev.className = 'cal-week-evt ' + tipoClass(e.tipo);
+        ev.style.left   = (colLeft + 2) + 'px';
+        ev.style.width  = (colW - 4) + 'px';
+        ev.style.top    = top + 'px';
+        ev.style.height = (height - 2) + 'px';
+        ev.title = `${e.tipo} — ${e.oportunidad_titulo} (${e.cliente_nombre})`;
+        ev.innerHTML = `<strong>${d.toLocaleTimeString('es-BO',{hour:'2-digit',minute:'2-digit'})}</strong> ${esc(e.oportunidad_titulo)}`;
+        ev.addEventListener('click', evClick => {
+            evClick.stopPropagation();
+            abrirPopoverActividad(e, ev);
+        });
+        grid.appendChild(ev);
+    });
+}
+
+/* ── Popover de actividad ── */
+function abrirPopoverActividad(evt, anchor) {
+
+    console.log('Datos del evento:', evt);   // ← LÍNEA TEMPORAL DE DEBUG
+    cerrarPopoverActividad();
+
+    const tipoIcons = {
+        'Llamada':                '📞',
+        'Reunion':                '🤝',
+        'Correo':                 '📧',
+        'Actualización de quote': '📋',
+        'Visita':                 '🏢'
+    };
+    const tipoCls = evt.tipo === 'Actualización de quote' ? 't-quote' : 't-' + evt.tipo;
+
+    const ini = new Date(evt.fecha_inicio);
+    const fin = evt.fecha_fin ? new Date(evt.fecha_fin) : null;
+    const fechaStr = ini.toLocaleDateString('es-BO', {weekday:'long', day:'numeric', month:'long', year:'numeric'});
+    const horaStr  = fin
+        ? `${ini.toLocaleTimeString('es-BO',{hour:'2-digit',minute:'2-digit'})} – ${fin.toLocaleTimeString('es-BO',{hour:'2-digit',minute:'2-digit'})}`
+        : ini.toLocaleTimeString('es-BO',{hour:'2-digit',minute:'2-digit'});
+
+    const pop = document.createElement('div');
+    pop.className = 'evt-popover';
+    pop.id = 'evtPopover';
+    pop.innerHTML = `
+        <div class="evt-pop-head ${tipoCls}">
+            <span class="evt-pop-tipo">${tipoIcons[evt.tipo] || '•'} ${esc(evt.tipo)}</span>
+            <button class="evt-pop-x" onclick="cerrarPopoverActividad()" title="Cerrar">×</button>
+        </div>
+        <div class="evt-pop-body">
+            <div class="evt-pop-title">${esc(evt.oportunidad_titulo)}</div>
+            <div class="evt-pop-row"><i class="fas fa-building"></i><span>${esc(evt.cliente_nombre)} <span style="color:var(--ink-3);">· #${String(evt.oportunidad_numero).padStart(4,'0')}</span></span></div>
+            <div class="evt-pop-row"><i class="fas fa-calendar"></i><span><strong style="text-transform:capitalize;">${fechaStr}</strong><br>${horaStr}</span></div>
+            ${evt.proximo_paso ? `<div class="evt-pop-row"><i class="fas fa-list-ul"></i><span>${esc(evt.proximo_paso)}</span></div>` : ''}
+            ${evt.invitados ? `<div class="evt-pop-row"><i class="fas fa-users"></i><span>${esc(evt.invitados)}</span></div>` : `<div class="evt-pop-row"><i class="fas fa-user"></i><span>${esc(evt.nombre_usuario)}</span></div>`}
+            ${evt.resultado ? `<div class="evt-pop-row"><i class="fas fa-check-circle"></i><span><strong>Resultado:</strong> ${esc(evt.resultado)}</span></div>` : ''}
+        </div>
+        <div class="evt-pop-foot">
+            <button class="btn btn-ghost" onclick="cerrarPopoverActividad()">Cerrar</button>
+            <button class="btn btn-blue" onclick="cerrarPopoverActividad();verOp(${evt.oportunidad_id})">
+                <i class="fas fa-external-link-alt"></i> Ver oportunidad
+            </button>
+        </div>`;
+    document.body.appendChild(pop);
+
+    // Posicionar cerca del elemento clickeado
+    const rect = anchor.getBoundingClientRect();
+    const pw = 340, ph = pop.offsetHeight;
+    const margin = 8;
+    let left = rect.right + margin;
+    let top  = rect.top;
+    if (left + pw > window.innerWidth - margin) {
+        left = rect.left - pw - margin;          // mostrar a la izquierda
+        if (left < margin) left = Math.max(margin, (window.innerWidth - pw) / 2);
+    }
+    if (top + ph > window.innerHeight - margin)  top = window.innerHeight - ph - margin;
+    if (top < margin) top = margin;
+    pop.style.left = left + 'px';
+    pop.style.top  = top + 'px';
+
+    // Cerrar al hacer click afuera o con Escape
+    setTimeout(() => {
+        document.addEventListener('mousedown', popoverOutsideHandler);
+        document.addEventListener('keydown',   popoverEscHandler);
+    }, 0);
+}
+
+function cerrarPopoverActividad() {
+    const pop = document.getElementById('evtPopover');
+    if (pop) pop.remove();
+    document.removeEventListener('mousedown', popoverOutsideHandler);
+    document.removeEventListener('keydown',   popoverEscHandler);
+}
+
+function popoverOutsideHandler(e) {
+    const pop = document.getElementById('evtPopover');
+    if (pop && !pop.contains(e.target)) cerrarPopoverActividad();
+}
+
+function popoverEscHandler(e) {
+    if (e.key === 'Escape') cerrarPopoverActividad();
 }
 </script>
 </body>

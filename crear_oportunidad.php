@@ -137,13 +137,46 @@ if ($action === 'save') {
                 echo json_encode(['success' => false, 'message' => 'Sin permiso de edición']);
                 exit;
             }
-            $stmt = $conn->prepare("
+
+            // Cargar valores anteriores para comparar
+            $stmt_old = $conn->prepare("
+                SELECT o.estado, o.etapa_id, o.monto_estimado, o.usuario_id,
+                       e.nombre AS etapa_nombre
+                FROM oportunidades o
+                JOIN oportunidad_etapas e ON o.etapa_id = e.id
+                WHERE o.id = ?
+            ");
+            $stmt_old->execute([$id]);
+            $old = $stmt_old->fetch(PDO::FETCH_ASSOC);
+
+            $conn->prepare("
                 UPDATE oportunidades
                 SET titulo=?, cliente_id=?, etapa_id=?, monto_estimado=?,
                     proteccion=?, notas=?, fecha_cierre=?, estado=?
                 WHERE id=?
-            ");
-            $stmt->execute([$titulo,$cliente_id,$etapa_id,$monto,$proteccion,$notas,$fecha_cierre,$estado,$id]);
+            ")->execute([$titulo,$cliente_id,$etapa_id,$monto,$proteccion,$notas,$fecha_cierre,$estado,$id]);
+
+            // Loguear cambios importantes
+            if ($old) {
+                if ($old['estado'] !== $estado) {
+                    _logOportunidad($conn, $id, $uid, 'estado_cambiado', 'estado',
+                        $old['estado'], $estado, "Cambió estado de {$old['estado']} a $estado");
+                }
+                if (intval($old['etapa_id']) !== $etapa_id) {
+                    $stmt_e = $conn->prepare("SELECT nombre FROM oportunidad_etapas WHERE id=?");
+                    $stmt_e->execute([$etapa_id]);
+                    $nueva_etapa = $stmt_e->fetchColumn();
+                    _logOportunidad($conn, $id, $uid, 'etapa_cambiada', 'etapa_id',
+                        $old['etapa_nombre'], $nueva_etapa, "Cambió etapa de {$old['etapa_nombre']} a $nueva_etapa");
+                }
+                if (floatval($old['monto_estimado']) !== $monto) {
+                    _logOportunidad($conn, $id, $uid, 'monto_cambiado', 'monto_estimado',
+                        number_format($old['monto_estimado'], 2, '.', ''),
+                        number_format($monto, 2, '.', ''),
+                        'Cambió el monto estimado de Bs ' . number_format($old['monto_estimado'], 2, ',', '.') .
+                        ' a Bs ' . number_format($monto, 2, ',', '.'));
+                }
+            }
 
         } else {
             if (!$puede_crear) {
@@ -153,17 +186,14 @@ if ($action === 'save') {
 
             $conn->beginTransaction();
 
-            $stmt = $conn->prepare(
-                "SELECT numero_actual FROM contadores WHERE documento='oportunidades' FOR UPDATE"
-            );
+            $stmt = $conn->prepare("SELECT numero_actual FROM contadores WHERE documento='oportunidades' FOR UPDATE");
             $stmt->execute();
             $num_actual = $stmt->fetchColumn();
             if ($num_actual === false) $num_actual = 0;
             $nuevo_num = $num_actual + 1;
 
-            $conn->prepare(
-                "UPDATE contadores SET numero_actual=? WHERE documento='oportunidades'"
-            )->execute([$nuevo_num]);
+            $conn->prepare("UPDATE contadores SET numero_actual=? WHERE documento='oportunidades'")
+                 ->execute([$nuevo_num]);
 
             $sucursal_id = $_SESSION['usuario']['sucursal_id'];
 
@@ -180,6 +210,9 @@ if ($action === 'save') {
             ]);
             $id = $conn->lastInsertId();
             $conn->commit();
+
+            _logOportunidad($conn, $id, $uid, 'creada', null, null, null,
+                "Oportunidad creada — \"$titulo\"");
         }
 
         echo json_encode(['success' => true, 'id' => $id]);
@@ -200,20 +233,40 @@ if ($action === 'mover') {
     $id       = intval($data['id']       ?? 0);
     $etapa_id = intval($data['etapa_id'] ?? 0);
 
-    if (!$puede_ver_todas) {
-        $stmt = $conn->prepare("SELECT usuario_id FROM oportunidades WHERE id=?");
-        $stmt->execute([$id]);
-        if ($stmt->fetchColumn() != $uid) {
-            echo json_encode(['success' => false, 'message' => 'Sin acceso']); exit;
-        }
+    $stmt = $conn->prepare("
+        SELECT o.usuario_id, o.etapa_id, o.estado, e.nombre AS etapa_nombre
+        FROM oportunidades o
+        JOIN oportunidad_etapas e ON o.etapa_id = e.id
+        WHERE o.id = ?
+    ");
+    $stmt->execute([$id]);
+    $old = $stmt->fetch(PDO::FETCH_ASSOC);
+
+    if (!$old) { echo json_encode(['success' => false, 'message' => 'No encontrada']); exit; }
+
+    if (!$puede_ver_todas && $old['usuario_id'] != $uid) {
+        echo json_encode(['success' => false, 'message' => 'Sin acceso']); exit;
     }
 
     $conn->prepare("UPDATE oportunidades SET etapa_id=? WHERE id=?")->execute([$etapa_id,$id]);
 
-    $stmt = $conn->prepare("SELECT orden FROM oportunidad_etapas WHERE id=?");
-    $stmt->execute([$etapa_id]);
-    if ($stmt->fetchColumn() >= 7) {
-        $conn->prepare("UPDATE oportunidades SET estado='Ganado' WHERE id=?")->execute([$id]);
+    // Log del cambio de etapa
+    if (intval($old['etapa_id']) !== $etapa_id) {
+        $stmt_e = $conn->prepare("SELECT nombre, orden FROM oportunidad_etapas WHERE id=?");
+        $stmt_e->execute([$etapa_id]);
+        $nueva = $stmt_e->fetch(PDO::FETCH_ASSOC);
+
+        _logOportunidad($conn, $id, $uid, 'etapa_cambiada', 'etapa_id',
+            $old['etapa_nombre'], $nueva['nombre'],
+            "Movió de {$old['etapa_nombre']} a {$nueva['nombre']}");
+
+        // Si pasa a etapa final → estado Ganado
+        if ($nueva['orden'] >= 7 && $old['estado'] !== 'Ganado') {
+            $conn->prepare("UPDATE oportunidades SET estado='Ganado' WHERE id=?")->execute([$id]);
+            _logOportunidad($conn, $id, $uid, 'estado_cambiado', 'estado',
+                $old['estado'], 'Ganado',
+                "Cambió estado de {$old['estado']} a Ganado (etapa final)");
+        }
     }
 
     echo json_encode(['success' => true]);
@@ -232,7 +285,6 @@ if ($action === 'save_actividad') {
 
     $oid          = intval($data['oportunidad_id']   ?? 0);
     $tipo         = $data['tipo']                    ?? 'Llamada';
-    $resultado    = trim($data['resultado']          ?? '');
     $proximo_paso = trim($data['proximo_paso']       ?? '');
     $fecha_ini    = trim($data['fecha_proximo_paso'] ?? '');
     $fecha_fin    = trim($data['fecha_fin']          ?? '');
@@ -273,9 +325,9 @@ if ($action === 'save_actividad') {
         // Insertar la actividad
         $conn->prepare("
             INSERT INTO oportunidad_actividades
-                (oportunidad_id, usuario_id, tipo, resultado, proximo_paso, fecha_proximo_paso, fecha_fin)
-            VALUES (?,?,?,?,?,?,?)
-        ")->execute([$oid, $uid, $tipo, $resultado, $proximo_paso, $fecha_ini, $fecha_fin]);
+                (oportunidad_id, usuario_id, tipo, proximo_paso, fecha_proximo_paso, fecha_fin)
+            VALUES (?,?,?,?,?,?)
+        ")->execute([$oid, $uid, $tipo, $proximo_paso, $fecha_ini, $fecha_fin]);
         $actividad_id = $conn->lastInsertId();
 
         // Insertar invitados (sin ms_event_id por ahora)
@@ -310,10 +362,7 @@ if ($action === 'save_actividad') {
                  . ' — ' . ($op_data['titulo'] ?? 'Oportunidad')
                  . ' (' . ($op_data['cliente_nombre'] ?? '') . ')';
 
-        $body_parts = [];
-        if ($resultado)    $body_parts[] = "Resultado previo:\n$resultado";
-        if ($proximo_paso) $body_parts[] = "$proximo_paso";
-        $body_text = implode("\n\n", $body_parts);
+        $body_text = $proximo_paso ?: '';
 
         // Cargar emails de los invitados
         $placeholders = implode(',', array_fill(0, count($invitados), '?'));
@@ -655,6 +704,233 @@ if ($action === 'delete') {
     exit;
 }
 
+// ═══════════════════════════════════════════════════════════
+// GET  action=detalle  — info completa para vista detalle
+// ═══════════════════════════════════════════════════════════
+if ($action === 'detalle') {
+    $id = intval($_GET['id'] ?? 0);
+
+    $stmt = $conn->prepare("
+        SELECT o.*,
+               c.nombre AS cliente_nombre, c.sector AS cliente_sector,
+               c.ciudad AS cliente_ciudad, c.nit AS cliente_nit, c.correo AS cliente_correo,
+               u.nombre AS nombre_usuario, u.email AS email_usuario,
+               s.nombre AS sucursal_nombre,
+               e.nombre AS etapa_nombre, e.probabilidad AS etapa_probabilidad
+        FROM oportunidades o
+        JOIN clientes c ON o.cliente_id = c.id
+        JOIN usuarios u ON o.usuario_id = u.id
+        JOIN sucursales s ON o.sucursal_id = s.id
+        JOIN oportunidad_etapas e ON o.etapa_id = e.id
+        WHERE o.id = ?
+    ");
+    $stmt->execute([$id]);
+    $op = $stmt->fetch(PDO::FETCH_ASSOC);
+
+    if (!$op) { echo json_encode(['success' => false, 'message' => 'No encontrada']); exit; }
+    if (!$puede_ver_todas && $op['usuario_id'] != $uid) {
+        echo json_encode(['success' => false, 'message' => 'Sin acceso']); exit;
+    }
+
+    // Actividades con invitados
+    $stmt = $conn->prepare("
+        SELECT a.*, u.nombre AS nombre_usuario,
+               (SELECT GROUP_CONCAT(uu.nombre SEPARATOR ', ')
+                FROM oportunidad_actividad_invitados i
+                JOIN usuarios uu ON uu.id = i.usuario_id
+                WHERE i.actividad_id = a.id) AS invitados_nombres,
+               (SELECT GROUP_CONCAT(i.usuario_id)
+                FROM oportunidad_actividad_invitados i
+                WHERE i.actividad_id = a.id) AS invitados_ids,
+               (SELECT COUNT(*) FROM oportunidad_actividad_invitados i
+                WHERE i.actividad_id = a.id AND i.ms_event_id IS NOT NULL) AS eventos_creados
+        FROM oportunidad_actividades a
+        JOIN usuarios u ON a.usuario_id = u.id
+        WHERE a.oportunidad_id = ?
+        ORDER BY a.fecha_creacion DESC
+    ");
+    $stmt->execute([$id]);
+    $actividades = $stmt->fetchAll(PDO::FETCH_ASSOC);
+
+    // Presupuestos vinculados
+    $stmt = $conn->prepare("
+        SELECT p.id_proyecto, p.numero_proyecto, p.titulo, p.cliente, e.estado,
+               COALESCE((SELECT SUM(i.total_hoy) FROM items i WHERE i.id_proyecto = p.id_proyecto), 0) AS monto_total
+        FROM oportunidad_presupuestos op
+        JOIN proyecto p ON op.proyecto_id = p.id_proyecto
+        JOIN estados e ON p.estado_id = e.id
+        WHERE op.oportunidad_id = ?
+        ORDER BY p.numero_proyecto DESC
+    ");
+    $stmt->execute([$id]);
+    $presupuestos = $stmt->fetchAll(PDO::FETCH_ASSOC);
+
+    // Archivos
+    $stmt = $conn->prepare("
+        SELECT a.*, u.nombre AS nombre_usuario
+        FROM oportunidad_archivos a
+        JOIN usuarios u ON a.usuario_id = u.id
+        WHERE a.oportunidad_id = ?
+        ORDER BY a.fecha_subida DESC
+    ");
+    $stmt->execute([$id]);
+    $archivos = $stmt->fetchAll(PDO::FETCH_ASSOC);
+
+    // Logs
+    $stmt = $conn->prepare("
+        SELECT l.*, u.nombre AS nombre_usuario
+        FROM oportunidad_logs l
+        JOIN usuarios u ON l.usuario_id = u.id
+        WHERE l.oportunidad_id = ?
+        ORDER BY l.fecha_creacion DESC
+    ");
+    $stmt->execute([$id]);
+    $logs = $stmt->fetchAll(PDO::FETCH_ASSOC);
+
+    echo json_encode([
+        'success'      => true,
+        'op'           => $op,
+        'actividades'  => $actividades,
+        'presupuestos' => $presupuestos,
+        'archivos'     => $archivos,
+        'logs'         => $logs,
+        'es_dueno'     => intval($op['usuario_id']) === $uid,
+    ]);
+    exit;
+}
+
+// ═══════════════════════════════════════════════════════════
+// POST  action=upload_archivo  — subir archivo
+// ═══════════════════════════════════════════════════════════
+if ($action === 'upload_archivo') {
+    if (!$puede_editar && !$puede_crear) {
+        echo json_encode(['success' => false, 'message' => 'Sin permisos']); exit;
+    }
+    $oid = intval($_POST['oportunidad_id'] ?? 0);
+    if (!$oid || !isset($_FILES['archivo'])) {
+        echo json_encode(['success' => false, 'message' => 'Falta oportunidad o archivo']); exit;
+    }
+    $f = $_FILES['archivo'];
+    if ($f['error'] !== UPLOAD_ERR_OK) {
+        echo json_encode(['success' => false, 'message' => 'Error al subir (código ' . $f['error'] . ')']); exit;
+    }
+    $MAX = 10 * 1024 * 1024;  // 10 MB
+    if ($f['size'] > $MAX) {
+        echo json_encode(['success' => false, 'message' => 'Archivo excede 10 MB']); exit;
+    }
+
+    // Generar nombre seguro
+    $ext = pathinfo($f['name'], PATHINFO_EXTENSION);
+    $ext_clean = preg_replace('/[^a-zA-Z0-9]/', '', $ext);
+    $nombre_alm = bin2hex(random_bytes(12)) . ($ext_clean ? '.' . $ext_clean : '');
+
+    $dir = __DIR__ . "/uploads/oportunidades/$oid";
+    if (!is_dir($dir) && !mkdir($dir, 0775, true)) {
+        echo json_encode(['success' => false, 'message' => 'No se pudo crear el directorio']); exit;
+    }
+    $dest = "$dir/$nombre_alm";
+    if (!move_uploaded_file($f['tmp_name'], $dest)) {
+        echo json_encode(['success' => false, 'message' => 'No se pudo guardar el archivo']); exit;
+    }
+
+    $mime = mime_content_type($dest) ?: $f['type'];
+
+    $conn->prepare("
+        INSERT INTO oportunidad_archivos
+            (oportunidad_id, usuario_id, nombre_original, nombre_almacenado, mime_type, tamano_bytes)
+        VALUES (?, ?, ?, ?, ?, ?)
+    ")->execute([$oid, $uid, $f['name'], $nombre_alm, $mime, $f['size']]);
+
+    _logOportunidad($conn, $oid, $uid, 'archivo_subido', null, null, $f['name'],
+        "Subió el archivo \"{$f['name']}\"");
+
+    // Devolver lista actualizada
+    $stmt = $conn->prepare("
+        SELECT a.*, u.nombre AS nombre_usuario
+        FROM oportunidad_archivos a
+        JOIN usuarios u ON a.usuario_id = u.id
+        WHERE a.oportunidad_id = ?
+        ORDER BY a.fecha_subida DESC
+    ");
+    $stmt->execute([$oid]);
+    echo json_encode(['success' => true, 'archivos' => $stmt->fetchAll(PDO::FETCH_ASSOC)]);
+    exit;
+}
+
+// ═══════════════════════════════════════════════════════════
+// GET  action=download_archivo  — descargar archivo
+// ═══════════════════════════════════════════════════════════
+if ($action === 'download_archivo') {
+    $aid = intval($_GET['id'] ?? 0);
+    $stmt = $conn->prepare("
+        SELECT a.*, o.usuario_id AS op_usuario_id
+        FROM oportunidad_archivos a
+        JOIN oportunidades o ON a.oportunidad_id = o.id
+        WHERE a.id = ?
+    ");
+    $stmt->execute([$aid]);
+    $arch = $stmt->fetch(PDO::FETCH_ASSOC);
+    if (!$arch) { http_response_code(404); exit('No encontrado'); }
+    if (!$puede_ver_todas && $arch['op_usuario_id'] != $uid) {
+        http_response_code(403); exit('Sin acceso');
+    }
+
+    $path = __DIR__ . "/uploads/oportunidades/{$arch['oportunidad_id']}/{$arch['nombre_almacenado']}";
+    if (!file_exists($path)) { http_response_code(404); exit('Archivo no existe en disco'); }
+
+    header('Content-Type: ' . ($arch['mime_type'] ?: 'application/octet-stream'));
+    header('Content-Disposition: attachment; filename="' . addslashes($arch['nombre_original']) . '"');
+    header('Content-Length: ' . filesize($path));
+    readfile($path);
+    exit;
+}
+
+// ═══════════════════════════════════════════════════════════
+// POST  action=delete_archivo  — eliminar archivo
+//      Solo puede eliminar quien creó la oportunidad o quien la tiene asignada
+// ═══════════════════════════════════════════════════════════
+if ($action === 'delete_archivo') {
+    $data = json_decode(file_get_contents('php://input'), true);
+    $aid = intval($data['id'] ?? 0);
+
+    $stmt = $conn->prepare("
+        SELECT a.*, o.usuario_id AS op_usuario_id
+        FROM oportunidad_archivos a
+        JOIN oportunidades o ON a.oportunidad_id = o.id
+        WHERE a.id = ?
+    ");
+    $stmt->execute([$aid]);
+    $arch = $stmt->fetch(PDO::FETCH_ASSOC);
+    if (!$arch) { echo json_encode(['success' => false, 'message' => 'No encontrado']); exit; }
+
+    // Solo el dueño de la oportunidad puede eliminar
+    if ($arch['op_usuario_id'] != $uid && !esSuperusuario()) {
+        echo json_encode(['success' => false, 'message' => 'Solo el responsable de la oportunidad puede eliminar archivos']);
+        exit;
+    }
+
+    $path = __DIR__ . "/uploads/oportunidades/{$arch['oportunidad_id']}/{$arch['nombre_almacenado']}";
+    if (file_exists($path)) @unlink($path);
+
+    $conn->prepare("DELETE FROM oportunidad_archivos WHERE id = ?")->execute([$aid]);
+
+    _logOportunidad($conn, $arch['oportunidad_id'], $uid, 'archivo_eliminado',
+        null, $arch['nombre_original'], null,
+        "Eliminó el archivo \"{$arch['nombre_original']}\"");
+
+    // Devolver lista actualizada
+    $stmt = $conn->prepare("
+        SELECT a.*, u.nombre AS nombre_usuario
+        FROM oportunidad_archivos a
+        JOIN usuarios u ON a.usuario_id = u.id
+        WHERE a.oportunidad_id = ?
+        ORDER BY a.fecha_subida DESC
+    ");
+    $stmt->execute([$arch['oportunidad_id']]);
+    echo json_encode(['success' => true, 'archivos' => $stmt->fetchAll(PDO::FETCH_ASSOC)]);
+    exit;
+}
+
 echo json_encode(['success' => false, 'message' => 'Acción no válida']);
 
 // ─── Helper ─────────────────────────────────────────────
@@ -697,4 +973,17 @@ function _presupuestosOp(PDO $conn, int $oid, int $uid = 0, bool $puede_ver_toda
         'presupuestos' => $vinculados,
         'disponibles'  => $disponibles,
     ];
+}
+
+// ─── Helper para logging de cambios ─────────────────────
+function _logOportunidad(PDO $conn, int $oid, int $uid, string $accion, ?string $campo = null,
+                        ?string $vAnt = null, ?string $vNuevo = null, ?string $desc = null): void {
+    $conn->prepare("
+        INSERT INTO oportunidad_logs
+            (oportunidad_id, usuario_id, accion, campo, valor_anterior, valor_nuevo, descripcion)
+        VALUES (?, ?, ?, ?, ?, ?, ?)
+    ")->execute([$oid, $uid, $accion, $campo,
+                 $vAnt !== null ? mb_substr($vAnt, 0, 500) : null,
+                 $vNuevo !== null ? mb_substr($vNuevo, 0, 500) : null,
+                 $desc !== null ? mb_substr($desc, 0, 500) : null]);
 }

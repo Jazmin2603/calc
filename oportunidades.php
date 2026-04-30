@@ -525,227 +525,257 @@ $etapas_json = json_encode($etapas);
     </div>
 </div>
 
-</div><!-- /.shell -->
-
 <!-- ═══════════════════════════════════════════════════════
-     MODAL
+     VISTA DETALLE
 ═══════════════════════════════════════════════════════ -->
-<div class="overlay" id="overlay">
-<div class="modal" id="modal">
-
-    <div class="mhead">
-        <div class="mhead-info">
-            <h2 id="mTitle">Nueva Oportunidad</h2>
-            <div class="sub" id="mSub"></div>
+<div id="vistaDetalle" style="display:none;">
+    <div class="det-head">
+        <button class="det-back" onclick="volverAlListado()" title="Volver"><i class="fas fa-arrow-left"></i></button>
+        <div class="det-titulo-wrap">
+            <div class="det-num" id="detNum">—</div>
+            <div class="det-titulo" id="detTitulo">—</div>
+            <div class="det-sub" id="detSub">—</div>
         </div>
-        <button class="mhead-x" onclick="cerrarModal()"><i class="fas fa-times"></i></button>
+        <div class="det-actions">
+            <?php if ($puede_editar): ?>
+            <button class="btn btn-ghost" onclick="editarDesdeDetalle()"><i class="fas fa-edit"></i> Editar</button>
+            <?php endif; ?>
+            <?php if ($puede_eliminar): ?>
+            <button class="btn btn-red" onclick="eliminarDesdeDetalle()"><i class="fas fa-trash"></i> Eliminar</button>
+            <?php endif; ?>
+        </div>
     </div>
 
-    <div class="mtabs" id="mTabs">
-        <button class="tab-btn active" data-tab="tdatos" onclick="setTab(this,'tdatos')">
-            <i class="fas fa-edit"></i> Datos
-        </button>
-        <button class="tab-btn" data-tab="tact" onclick="setTab(this,'tact')" id="btnTabAct" style="display:none;">
-            <i class="fas fa-comments"></i> Actividades
-            <span id="badgeAct" class="k-badge" style="background:#d97706;"></span>
-        </button>
-        <button class="tab-btn" data-tab="tpres" onclick="setTab(this,'tpres')" id="btnTabPres" style="display:none;">
-            <i class="fas fa-file-invoice"></i> Presupuestos
-            <span id="badgePres" class="k-badge" style="background:#2563eb;"></span>
-        </button>
-    </div>
+    <div class="det-split">
 
-    <div class="tab-panel active" id="tdatos">
-    <form id="fOp" autocomplete="off">
-    <input type="hidden" id="fId" name="id">
-
-    <div class="g2">
-        <div class="fg span2">
-            <label>Título *</label>
-            <input type="text" name="titulo" id="fTitulo" required
-                   placeholder="Ej: Implementación ERP Empresa XYZ">
+    <!-- ════ COLUMNA IZQUIERDA: Datos / Presupuestos / Archivos ════ -->
+    <div class="det-side det-side-l">
+        <div class="det-tabs">
+            <button class="det-tab active" data-dt="datos" onclick="setDetTab('datos')"><i class="fas fa-info-circle"></i> Datos</button>
+            <button class="det-tab" data-dt="presupuestos" onclick="setDetTab('presupuestos')"><i class="fas fa-file-invoice"></i> Presupuestos <span class="det-tab-count" id="detCntPres">0</span></button>
+            <button class="det-tab" data-dt="archivos" onclick="setDetTab('archivos')"><i class="fas fa-paperclip"></i> Archivos <span class="det-tab-count" id="detCntArch">0</span></button>
+            <!-- En móvil mostrar también los de la otra columna -->
+            <button class="det-tab tab-mobile-only" data-dt="actividades" onclick="setDetTab('actividades')"><i class="fas fa-comments"></i> Actividades <span class="det-tab-count" id="detCntActMob">0</span></button>
+            <button class="det-tab tab-mobile-only" data-dt="movimientos" onclick="setDetTab('movimientos')"><i class="fas fa-history"></i> Movimientos <span class="det-tab-count" id="detCntLogMob">0</span></button>
         </div>
 
-        <div class="fg span2">
-            <label>Cliente *</label>
-            <input type="hidden" name="cliente_id" id="fCliente" required>
-            <div class="client-search-wrap">
-                <input type="text" id="clienteSearch"
-                       placeholder="Escribir para buscar cliente…"
-                       autocomplete="off"
-                       onkeydown="clienteKeydown(event)"
-                       oninput="filtrarClientes()"
-                       onfocus="abrirDropdown()"
-                       onblur="ocultarDropdownDelay()">
-                <div class="client-dropdown" id="clienteDropdown"></div>
+        <div class="det-body">
+
+            <!-- TAB DATOS -->
+            <div class="det-panel active" id="detPanelDatos">
+                <div class="det-grid" id="detDatosGrid"></div>
+                <div id="detNotasWrap" style="margin-top:14px;"></div>
             </div>
-        </div>
 
-        <div class="fg">
-            <label>Etapa</label>
-            <select name="etapa_id" id="fEtapa">
-                <?php foreach ($etapas as $e): ?>
-                <option value="<?= $e['id'] ?>"><?= htmlspecialchars($e['nombre']) ?></option>
-                <?php endforeach; ?>
-            </select>
-        </div>
-
-        <div class="fg">
-            <label>Monto Estimado (Bs)</label>
-            <input type="number" step="0.01" min="0" name="monto_estimado" id="fMonto" placeholder="0.00">
-        </div>
-
-        <div class="fg">
-            <label>Fecha de Cierre</label>
-            <input type="date" name="fecha_cierre" id="fCierre">
-        </div>
-
-        <div class="fg">
-            <label>Protección ID</label>
-            <input type="text" name="proteccion" id="fProteccion" placeholder="Ej: Dell ID">
-        </div>
-
-        <div class="fg">
-            <label>Estado</label>
-            <select name="estado" id="fEstado">
-                <option value="Activo">Activo</option>
-                <option value="Ganado">Ganado</option>
-                <option value="Perdido">Perdido</option>
-            </select>
-        </div>
-
-        <div class="fg span2">
-            <label>Notas</label>
-            <textarea name="notas" id="fNotas" placeholder="Notas internas…"></textarea>
-        </div>
-    </div>
-    </form>
-    </div>
-
-    <!-- ── TAB ACTIVIDADES ── -->
-    <div class="tab-panel" id="tact">
-        <div class="act-list" id="listaAct">
-            <div class="col-empty" style="padding:24px 0;">
-                <i class="fas fa-comments" style="font-size:1.6rem;display:block;margin-bottom:5px;"></i>
-                Sin actividades
+            <!-- TAB PRESUPUESTOS -->
+            <div class="det-panel" id="detPanelPresupuestos">
+                <?php if($puede_crear_presupuesto): ?>
+                <div class="crear-pres-box" id="boxCrearPres" style="display:flex;margin-bottom:12px;">
+                    <div class="cp-info">
+                        <strong><i class="fas fa-file-plus"></i> Crear nuevo presupuesto</strong>
+                        <span>Se creará un presupuesto vinculado a esta oportunidad</span>
+                    </div>
+                    <button class="btn btn-blue" onclick="crearPresupuestoDesdeOp()">
+                        <i class="fas fa-plus"></i> Crear presupuesto
+                    </button>
+                </div>
+                <?php endif; ?>
+                <div class="pres-list" id="listaPres"></div>
+                <div class="link-row" style="margin-top:8px;">
+                    <select id="selPres">
+                        <option value="">— Vincular presupuesto existente —</option>
+                        <?php foreach ($presupuestos_disponibles as $p): ?>
+                        <option value="<?= $p['id_proyecto'] ?>">
+                            #<?= $p['numero_proyecto'] ?> — <?= htmlspecialchars($p['titulo']) ?>
+                            (<?= htmlspecialchars($p['cliente']) ?>) [<?= $p['estado'] ?>]
+                        </option>
+                        <?php endforeach; ?>
+                    </select>
+                    <button class="btn btn-outline" onclick="vincular()">
+                        <i class="fas fa-link"></i> Vincular
+                    </button>
+                </div>
             </div>
+
+            <!-- TAB ARCHIVOS -->
+            <div class="det-panel" id="detPanelArchivos">
+                <div class="arch-zone" id="archZone" onclick="document.getElementById('archInput').click()">
+                    <i class="fas fa-cloud-upload-alt"></i>
+                    <div class="arch-zone-text">Click o arrastra archivos aquí</div>
+                    <div class="arch-zone-sub">Tamaño máximo: 10 MB por archivo</div>
+                    <input type="file" id="archInput" style="display:none;" onchange="subirArchivos(this.files)">
+                    <div class="arch-progress" id="archProgress"><div class="arch-progress-bar" id="archProgressBar"></div></div>
+                </div>
+                <div class="arch-list" id="listaArch"></div>
+            </div>
+
+            <!-- TABS móviles: paneles que solo se usan cuando colapsa -->
+            <div class="det-panel panel-mobile-only" id="detPanelActividadesMob"></div>
+            <div class="det-panel panel-mobile-only" id="detPanelMovimientosMob"></div>
+
         </div>
-        <div class="act-form">
-            <div class="form-label"><i class="fas fa-plus"></i> Registrar actividad</div>
-            <div class="g2">
-                <div class="fg">
-                    <label>Tipo</label>
-                    <select id="actTipo">
-                        <option value="Llamada">📞 Llamada</option>
-                        <option value="Reunion">🤝 Reunión</option>
-                        <option value="Correo">📧 Correo</option>
-                        <option value="Actualización de quote">📋 Actualización de quote</option>
-                        <option value="Visita">🏢 Visita</option>
-                    </select>
-                </div>
-                <div class="fg">
-                    <label>Inicio *</label>
-                    <input type="datetime-local" id="actFechaIni">
-                </div>
-                <div class="fg">
-                    <label>Fin *</label>
-                    <input type="datetime-local" id="actFechaFin">
-                </div>
-                <div class="fg">
-                    <label>Duración rápida</label>
-                    <select id="actDurPreset" onchange="aplicarPresetDuracion()">
-                        <option value="">Personalizada</option>
-                        <option value="15">15 min</option>
-                        <option value="30" selected>30 min</option>
-                        <option value="45">45 min</option>
-                        <option value="60">1 hora</option>
-                        <option value="90">1.5 horas</option>
-                        <option value="120">2 horas</option>
-                    </select>
-                </div>
-                <div class="fg span2">
-                    <label>Invitados <span style="color:var(--ink-3);font-weight:400;">(además de ti)</span></label>
-                    <div class="invitados-wrap">
-                        <div class="invitados-chips" id="invitadosChips"></div>
-                        <input type="text" id="invitadosSearch" placeholder="Escribe para agregar usuarios…"
-                            onkeydown="invitadosKeydown(event)" oninput="filtrarInvitados()"
-                            onfocus="filtrarInvitados()" onblur="setTimeout(()=>document.getElementById('invitadosDropdown').classList.remove('open'),180)">
-                        <div class="invitados-dropdown" id="invitadosDropdown"></div>
+    </div>
+
+    <!-- ════ COLUMNA DERECHA: Actividades / Movimientos ════ -->
+    <div class="det-side det-side-r">
+        <div class="det-tabs">
+            <button class="det-tab active" data-dt-r="actividades" onclick="setDetTabR('actividades')"><i class="fas fa-comments"></i> Actividades <span class="det-tab-count" id="detCntAct">0</span></button>
+            <button class="det-tab" data-dt-r="movimientos" onclick="setDetTabR('movimientos')"><i class="fas fa-history"></i> Movimientos <span class="det-tab-count" id="detCntLog">0</span></button>
+        </div>
+
+        <div class="det-body">
+
+            <!-- TAB ACTIVIDADES -->
+            <div class="det-panel-r active" id="detPanelActividades">
+                <div class="act-list" id="listaAct"></div>
+                <div class="act-form" style="margin-top:14px;">
+                    <div class="form-label"><i class="fas fa-plus"></i> Registrar actividad</div>
+                    <div class="g2">
+                        <div class="fg">
+                            <label>Tipo</label>
+                            <select id="actTipo">
+                                <option value="Llamada">📞 Llamada</option>
+                                <option value="Reunion">🤝 Reunión</option>
+                                <option value="Correo">📧 Correo</option>
+                                <option value="Actualización de quote">📋 Actualización de quote</option>
+                                <option value="Visita">🏢 Visita</option>
+                            </select>
+                        </div>
+                        <div class="fg">
+                            <label>Inicio *</label>
+                            <input type="datetime-local" id="actFechaIni">
+                        </div>
+                        <div class="fg">
+                            <label>Fin *</label>
+                            <input type="datetime-local" id="actFechaFin">
+                        </div>
+                        <div class="fg">
+                            <label>Duración rápida</label>
+                            <select id="actDurPreset" onchange="aplicarPresetDuracion()">
+                                <option value="">Personalizada</option>
+                                <option value="15">15 min</option>
+                                <option value="30" selected>30 min</option>
+                                <option value="45">45 min</option>
+                                <option value="60">1 hora</option>
+                                <option value="90">1.5 horas</option>
+                                <option value="120">2 horas</option>
+                            </select>
+                        </div>
+                        <div class="fg span2">
+                            <label>Invitados <span style="color:var(--ink-3);font-weight:400;">(además de ti)</span></label>
+                            <div class="invitados-wrap">
+                                <div class="invitados-chips" id="invitadosChips"></div>
+                                <input type="text" id="invitadosSearch" placeholder="Escribe para agregar usuarios…"
+                                       onkeydown="invitadosKeydown(event)" oninput="filtrarInvitados()"
+                                       onfocus="filtrarInvitados()" onblur="setTimeout(()=>document.getElementById('invitadosDropdown').classList.remove('open'),180)">
+                                <div class="invitados-dropdown" id="invitadosDropdown"></div>
+                            </div>
+                        </div>
+                        <div class="fg span2">
+                            <label>Descripción / Agenda</label>
+                            <textarea id="actProximo" style="min-height:44px;" placeholder="¿Qué está planificado?"></textarea>
+                        </div>
+                    </div>
+                    <div style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:8px;margin-top:6px;">
+                        <label id="labelOutlookCheck" style="display:none;align-items:center;gap:7px;font-size:.8rem;color:var(--ink-2);cursor:pointer;">
+                            <input type="checkbox" id="chkOutlook" style="accent-color:var(--blue);width:15px;height:15px;">
+                            <i class="fas fa-calendar-check" style="color:var(--blue);"></i>
+                            Agregar al calendario de Outlook
+                        </label>
+                        <button class="btn btn-green" onclick="guardarActividad()">
+                            <i class="fas fa-paper-plane"></i> Registrar
+                        </button>
                     </div>
                 </div>
-                <div class="fg span2">
-                    <label>Descripción / Agenda</label>
-                    <textarea id="actProximo" style="min-height:44px;" placeholder="¿Qué está planificado?"></textarea>
+            </div>
+
+            <!-- TAB MOVIMIENTOS -->
+            <div class="det-panel-r" id="detPanelMovimientos">
+                <div class="log-list" id="listaLog"></div>
+            </div>
+
+        </div>
+    </div>
+
+</div>
+</div>
+
+<!-- ═══════════════════════════════════════════════════════
+     VISTA FORMULARIO (nueva / editar)
+═══════════════════════════════════════════════════════ -->
+<div id="vistaForm" style="display:none;">
+    <div class="det-head">
+        <button class="det-back" onclick="volverDesdeForm()" title="Volver"><i class="fas fa-arrow-left"></i></button>
+        <div class="det-titulo-wrap">
+            <div class="det-titulo" id="formTitulo">Nueva Oportunidad</div>
+            <div class="det-sub" id="formSub"></div>
+        </div>
+    </div>
+
+    <div class="det-body">
+        <div class="form-page">
+            <form id="fOp" autocomplete="off">
+                <input type="hidden" id="fId" name="id">
+                <div class="g2">
+                    <div class="fg span2">
+                        <label>Título *</label>
+                        <input type="text" name="titulo" id="fTitulo" required placeholder="Ej: Implementación ERP Empresa XYZ">
+                    </div>
+                    <div class="fg span2">
+                        <label>Cliente *</label>
+                        <input type="hidden" name="cliente_id" id="fCliente" required>
+                        <div class="client-search-wrap">
+                            <input type="text" id="clienteSearch" placeholder="Escribir para buscar cliente…" autocomplete="off"
+                                   onkeydown="clienteKeydown(event)" oninput="filtrarClientes()"
+                                   onfocus="abrirDropdown()" onblur="ocultarDropdownDelay()">
+                            <div class="client-dropdown" id="clienteDropdown"></div>
+                        </div>
+                    </div>
+                    <div class="fg">
+                        <label>Etapa</label>
+                        <select name="etapa_id" id="fEtapa">
+                            <?php foreach ($etapas as $e): ?>
+                            <option value="<?= $e['id'] ?>"><?= htmlspecialchars($e['nombre']) ?></option>
+                            <?php endforeach; ?>
+                        </select>
+                    </div>
+                    <div class="fg">
+                        <label>Monto Estimado (Bs)</label>
+                        <input type="number" step="0.01" min="0" name="monto_estimado" id="fMonto" placeholder="0.00">
+                    </div>
+                    <div class="fg">
+                        <label>Fecha de Cierre</label>
+                        <input type="date" name="fecha_cierre" id="fCierre">
+                    </div>
+                    <div class="fg">
+                        <label>Protección ID</label>
+                        <input type="text" name="proteccion" id="fProteccion" placeholder="Ej: Dell ID">
+                    </div>
+                    <div class="fg">
+                        <label>Estado</label>
+                        <select name="estado" id="fEstado">
+                            <option value="Activo">Activo</option>
+                            <option value="Ganado">Ganado</option>
+                            <option value="Perdido">Perdido</option>
+                        </select>
+                    </div>
+                    <div class="fg span2">
+                        <label>Notas</label>
+                        <textarea name="notas" id="fNotas" placeholder="Notas internas…"></textarea>
+                    </div>
                 </div>
-
-            </div>
-            <div style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:8px;margin-top:4px;">
-                <label id="labelOutlookCheck" style="display:none;align-items:center;gap:7px;font-size:.8rem;color:var(--ink-2);cursor:pointer;">
-                    <input type="checkbox" id="chkOutlook" style="accent-color:var(--blue);width:15px;height:15px;">
-                    <i class="fas fa-calendar-check" style="color:var(--blue);"></i>
-                    Agregar al calendario de Outlook
-                </label>
-                <button class="btn btn-green" onclick="guardarActividad()">
-                    <i class="fas fa-paper-plane"></i> Registrar
-                </button>
-            </div>
+                <div class="form-actions">
+                    <button type="button" class="btn btn-ghost" onclick="volverDesdeForm()">Cancelar</button>
+                    <?php if ($puede_crear || $puede_editar): ?>
+                    <button type="button" class="btn btn-green" onclick="guardar()"><i class="fas fa-save"></i> Guardar</button>
+                    <?php endif; ?>
+                </div>
+            </form>
         </div>
     </div>
-
-    <!-- ── TAB PRESUPUESTOS ── -->
-    <div class="tab-panel" id="tpres">
-
-        <?php if($puede_crear_presupuesto): ?>
-        <!-- Crear presupuesto nuevo desde la oportunidad -->
-        <div class="crear-pres-box" id="boxCrearPres" style="display:none;">
-            <div class="cp-info">
-                <strong><i class="fas fa-file-plus"></i> Crear nuevo presupuesto</strong>
-                <span>Se creará un presupuesto vinculado a esta oportunidad</span>
-            </div>
-            <button class="btn btn-blue" onclick="crearPresupuestoDesdeOp()">
-                <i class="fas fa-plus"></i> Crear presupuesto
-            </button>
-        </div>
-        <?php endif; ?>
-
-        <div class="pres-list" id="listaPres" style="margin-top:10px;">
-            <div class="col-empty" style="padding:20px 0;">
-                <i class="fas fa-file-alt" style="font-size:1.6rem;display:block;margin-bottom:5px;"></i>
-                Sin presupuestos vinculados
-            </div>
-        </div>
-        <div class="link-row" style="margin-top:6px;">
-            <select id="selPres">
-                <option value=""> Vincular presupuesto existente </option>
-                <?php foreach ($presupuestos_disponibles as $p): ?>
-                <option value="<?= $p['id_proyecto'] ?>">
-                    #<?= $p['numero_proyecto'] ?> — <?= htmlspecialchars($p['titulo']) ?>
-                    (<?= htmlspecialchars($p['cliente']) ?>) [<?= $p['estado'] ?>]
-                </option>
-                <?php endforeach; ?>
-            </select>
-            <button class="btn btn-outline" onclick="vincular()">
-                <i class="fas fa-link"></i> Vincular
-            </button>
-        </div>
-    </div>
-
-    <div class="mfoot">
-        <?php if ($puede_eliminar): ?>
-        <button class="btn btn-red" id="btnDel" style="display:none;margin-right:auto;" onclick="eliminar()">
-            <i class="fas fa-trash"></i> Eliminar
-        </button>
-        <?php endif; ?>
-        <button class="btn btn-ghost" onclick="cerrarModal()">Cancelar</button>
-        <?php if ($puede_crear || $puede_editar): ?>
-        <button class="btn btn-green" onclick="guardar()">
-            <i class="fas fa-save"></i> Guardar
-        </button>
-        <?php endif; ?>
-    </div>
-
 </div>
-</div>
+
+</div><!-- /.shell -->
 
 <div class="toasts" id="toasts"></div>
 
@@ -759,6 +789,8 @@ const PUEDE_ELIMINAR          = <?= json_encode($puede_eliminar) ?>;
 const PUEDE_CREAR_PRESUPUESTO = <?= json_encode($puede_crear_presupuesto) ?>;
 let opId = null;
 let opClienteId = null;
+
+let detalleData = null;
 
 const USUARIOS_INVITABLES = <?= json_encode($usuarios_invitables) ?>;
 const MI_USUARIO_ID = <?= json_encode($uid) ?>;
@@ -783,22 +815,54 @@ let invitadosSel = [];
 let invHighlight = -1;
 
 function setVista(v) {
+    // Si estábamos en detalle/form, salir de ahí
+    document.getElementById('vistaDetalle').style.display = 'none';
+    document.getElementById('vistaForm').style.display    = 'none';
+
     vistaActual = v;
     localStorage.setItem('op_vista', v);
-    const elK  = document.getElementById('vistaKanban');
-    const elL  = document.getElementById('vistaLista');
-    const elC  = document.getElementById('vistaCalendario');
-    const elG  = document.getElementById('vistaGraficos');
+    const elK = document.getElementById('vistaKanban');
+    const elL = document.getElementById('vistaLista');
+    const elC = document.getElementById('vistaCalendario');
+    const elG = document.getElementById('vistaGraficos');
     if (elK) elK.style.display = v === 'kanban'      ? '' : 'none';
     if (elL) elL.style.display = v === 'lista'       ? '' : 'none';
     if (elC) elC.style.display = v === 'calendario'  ? '' : 'none';
     if (elG) elG.style.display = v === 'graficos'    ? '' : 'none';
+
+    // Mostrar toolbar (ocultable cuando estamos en detalle)
+    document.querySelector('.toolbar').style.display = '';
+
     document.querySelectorAll('.vtb').forEach(b => b.classList.remove('active'));
     const btn = document.getElementById('vtb' + v.charAt(0).toUpperCase() + v.slice(1));
     if (btn) btn.classList.add('active');
     if (v === 'lista')       renderLista();
     if (v === 'calendario')  cargarCalendario();
     if (v === 'graficos')    renderGraficos();
+}
+
+function ocultarVistasListado() {
+    ['vistaKanban','vistaLista','vistaCalendario','vistaGraficos'].forEach(id => {
+        const el = document.getElementById(id);
+        if (el) el.style.display = 'none';
+    });
+    document.querySelector('.toolbar').style.display = 'none';
+}
+
+function volverAlListado() {
+    document.getElementById('vistaDetalle').style.display = 'none';
+    document.getElementById('vistaForm').style.display    = 'none';
+    setVista(vistaActual);
+}
+
+function volverDesdeForm() {
+    document.getElementById('vistaForm').style.display = 'none';
+    if (opId) {
+        // Estábamos editando → volver al detalle
+        verOp(opId);
+    } else {
+        volverAlListado();
+    }
 }
 
 /* ── Lista ── */
@@ -1211,21 +1275,6 @@ function toast(msg, tipo = 'ok') {
     setTimeout(() => el.remove(), 3200);
 }
 
-/* ── Tabs ──────────────────────────────────────────────── */
-function setTab(btn, id) {
-    document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
-    document.querySelectorAll('.tab-panel').forEach(p => p.classList.remove('active'));
-    btn.classList.add('active');
-    document.getElementById(id).classList.add('active');
-    // Sincronizar visibilidad del checkbox Outlook al entrar al tab de actividades
-    if (id === 'tact') {
-        const label = document.getElementById('labelOutlookCheck');
-        if (label) label.style.display = outlookConectado ? 'flex' : 'none';
-        const chk = document.getElementById('chkOutlook');
-        if (chk && outlookConectado) chk.checked = true;
-    }
-}
-
 /* ── Abrir modal nuevo ─────────────────────────────────── */
 function abrirNuevo(etapaId = null) {
     opId = null;
@@ -1234,83 +1283,143 @@ function abrirNuevo(etapaId = null) {
     document.getElementById('fId').value = '';
     document.getElementById('fCliente').value = '';
     document.getElementById('clienteSearch').value = '';
-    document.getElementById('mTitle').textContent = 'Nueva Oportunidad';
-    document.getElementById('mSub').textContent   = '';
     if (etapaId) document.getElementById('fEtapa').value = etapaId;
 
-    document.getElementById('btnTabAct').style.display  = 'none';
-    document.getElementById('btnTabPres').style.display = 'none';
-    const btnDel = document.getElementById('btnDel');
-    if (btnDel) btnDel.style.display = 'none';
-    const boxCrear = document.getElementById('boxCrearPres');
-    if (boxCrear) boxCrear.style.display = 'none';
+    document.getElementById('formTitulo').textContent = 'Nueva Oportunidad';
+    document.getElementById('formSub').textContent = '';
 
-    setInvitadosIniciales([]);
-
-    setTab(document.querySelector('.tab-btn'), 'tdatos');
-    document.getElementById('overlay').classList.add('show');
-    document.getElementById('fTitulo').focus();
+    ocultarVistasListado();
+    document.getElementById('vistaDetalle').style.display = 'none';
+    document.getElementById('vistaForm').style.display = '';
+    setTimeout(() => document.getElementById('fTitulo').focus(), 100);
 }
-
-/* ── Cerrar modal ──────────────────────────────────────── */
-function cerrarModal() {
-    document.getElementById('overlay').classList.remove('show');
-    opId = null;
-    opClienteId = null;
-}
-document.getElementById('overlay').addEventListener('click', e => {
-    if (e.target.id === 'overlay') cerrarModal();
-});
 
 /* ── Ver / editar oportunidad ──────────────────────────── */
 async function verOp(id) {
     try {
-        const r = await fetch(`crear_oportunidad.php?action=get&id=${id}`);
+        const r = await fetch(`crear_oportunidad.php?action=detalle&id=${id}`);
         const d = await r.json();
         if (!d.success) { toast(d.message || 'Error al cargar', 'err'); return; }
 
-        const op = d.op;
-        opId = op.id;
-        opClienteId = op.cliente_id;
+        opId = d.op.id;
+        opClienteId = d.op.cliente_id;
+        detalleData = d;  // global para usar en editarDesdeDetalle
 
-        document.getElementById('fId').value          = op.id;
-        document.getElementById('fTitulo').value       = op.titulo;
-        document.getElementById('fCliente').value      = op.cliente_id;
-        document.getElementById('clienteSearch').value = d.cliente_nombre;
-        document.getElementById('fEtapa').value        = op.etapa_id;
-        document.getElementById('fMonto').value        = op.monto_estimado;
-        document.getElementById('fCierre').value       = op.fecha_cierre  || '';
-        document.getElementById('fProteccion').value   = op.proteccion    || '';
-        document.getElementById('fEstado').value       = op.estado;
-        document.getElementById('fNotas').value        = op.notas         || '';
+        ocultarVistasListado();
+        document.getElementById('vistaForm').style.display = 'none';
+        document.getElementById('vistaDetalle').style.display = '';
 
-        const titulo = op.titulo.length > 52 ? op.titulo.slice(0, 50) + '…' : op.titulo;
-        document.getElementById('mTitle').textContent = titulo;
-        document.getElementById('mSub').textContent   =
-            `#${String(op.numero).padStart(4,'0')} · ${d.cliente_nombre}`;
-
-        document.getElementById('btnTabAct').style.display  = '';
-        document.getElementById('btnTabPres').style.display = '';
-        document.getElementById('badgeAct').textContent     = d.actividades.length  || '';
-        document.getElementById('badgePres').textContent    = d.presupuestos.length || '';
-
-        // Mostrar caja de crear presupuesto (solo si tiene permiso y está en tab pres)
-        const boxCrear = document.getElementById('boxCrearPres');
-        if (boxCrear) boxCrear.style.display = 'flex';
-
-        const btnDel = document.getElementById('btnDel');
-        if (btnDel) btnDel.style.display = 'inline-flex';
-
-        renderActividades(d.actividades);
-        setInvitadosIniciales([]);
-
-        renderPresupuestos(d.presupuestos);
-
-        setTab(document.querySelector('.tab-btn[data-tab="tdatos"]'), 'tdatos');
-        document.getElementById('overlay').classList.add('show');
+        renderDetalle(d);
     } catch (e) {
         toast('Error de conexión', 'err');
         console.error(e);
+    }
+}
+
+function renderDetalle(d) {
+    const op = d.op;
+    document.getElementById('detNum').textContent     = `#${String(op.numero).padStart(4,'0')} · ${op.sucursal_nombre}`;
+    document.getElementById('detTitulo').textContent  = op.titulo;
+    document.getElementById('detSub').innerHTML       =
+        `<span><i class="fas fa-building"></i>${esc(op.cliente_nombre)}</span>` +
+        `<span><i class="fas fa-user"></i>${esc(op.nombre_usuario)}</span>` +
+        `<span><i class="fas fa-tag"></i><span class="estado-pill estado-${op.estado}">${op.estado}</span></span>`;
+
+    // Tab Datos
+    const color = ETAPA_COLORES[op.etapa_nombre] || '#475569';
+    document.getElementById('detDatosGrid').innerHTML = `
+        <div class="det-card">
+            <h4><i class="fas fa-info-circle"></i> Información general</h4>
+            <div class="det-row"><span class="lbl">N° Oportunidad</span><span class="val mono">#${String(op.numero).padStart(4,'0')}</span></div>
+            <div class="det-row"><span class="lbl">Estado</span><span class="val"><span class="estado-pill estado-${op.estado}">${op.estado}</span></span></div>
+            <div class="det-row"><span class="lbl">Etapa</span><span class="val"><span class="det-pill" style="background:${color};">${esc(op.etapa_nombre)}</span></span></div>
+            <div class="det-row"><span class="lbl">Probabilidad</span><span class="val mono">${op.etapa_probabilidad}%</span></div>
+            <div class="det-row"><span class="lbl">Sucursal</span><span class="val">${esc(op.sucursal_nombre)}</span></div>
+            ${op.proteccion ? `<div class="det-row"><span class="lbl">Protección</span><span class="val">${esc(op.proteccion)}</span></div>` : ''}
+        </div>
+        <div class="det-card">
+            <h4><i class="fas fa-coins"></i> Económico</h4>
+            <div class="det-row"><span class="lbl">Monto estimado</span><span class="val mono big">Bs ${numFmt(op.monto_estimado)}</span></div>
+            <div class="det-row"><span class="lbl">Monto ponderado</span><span class="val mono">Bs ${numFmt(op.monto_estimado * op.etapa_probabilidad / 100)}</span></div>
+            <div class="det-row"><span class="lbl">Fecha de cierre</span><span class="val">${op.fecha_cierre ? fmtFecha(op.fecha_cierre) : '—'}</span></div>
+            <div class="det-row"><span class="lbl">Fecha de creación</span><span class="val">${op.fecha_creacion ? fmtFecha(op.fecha_creacion) : '—'}</span></div>
+        </div>
+        <div class="det-card">
+            <h4><i class="fas fa-building"></i> Cliente</h4>
+            <div class="det-row"><span class="lbl">Nombre</span><span class="val">${esc(op.cliente_nombre)}</span></div>
+            ${op.cliente_nit ? `<div class="det-row"><span class="lbl">NIT</span><span class="val mono">${esc(op.cliente_nit)}</span></div>` : ''}
+            ${op.cliente_ciudad ? `<div class="det-row"><span class="lbl">Ciudad</span><span class="val">${esc(op.cliente_ciudad)}</span></div>` : ''}
+            ${op.cliente_sector ? `<div class="det-row"><span class="lbl">Sector</span><span class="val">${esc(op.cliente_sector)}</span></div>` : ''}
+            ${op.cliente_correo ? `<div class="det-row"><span class="lbl">Correo</span><span class="val">${esc(op.cliente_correo)}</span></div>` : ''}
+        </div>
+        <div class="det-card">
+            <h4><i class="fas fa-user-tie"></i> Responsable</h4>
+            <div class="det-row"><span class="lbl">Vendedor</span><span class="val">${esc(op.nombre_usuario)}</span></div>
+            ${op.email_usuario ? `<div class="det-row"><span class="lbl">Email</span><span class="val">${esc(op.email_usuario)}</span></div>` : ''}
+        </div>
+    `;
+    document.getElementById('detNotasWrap').innerHTML = op.notas
+        ? `<div class="det-card"><h4><i class="fas fa-sticky-note"></i> Notas</h4><div class="det-notas">${esc(op.notas)}</div></div>`
+        : '';
+
+    // Contadores
+    document.getElementById('detCntAct').textContent  = d.actividades.length;
+    document.getElementById('detCntPres').textContent = d.presupuestos.length;
+    document.getElementById('detCntArch').textContent = d.archivos.length;
+    document.getElementById('detCntLog').textContent  = d.logs.length;
+
+    // Renderizar contenidos
+    renderActividades(d.actividades);
+    renderPresupuestos(d.presupuestos);
+    renderArchivos(d.archivos);
+    renderLogs(d.logs);
+    setInvitadosIniciales([]);
+    // Sincronizar contadores móviles
+    const mobAct = document.getElementById('detCntActMob');
+    const mobLog = document.getElementById('detCntLogMob');
+    if (mobAct) mobAct.textContent = d.actividades.length;
+    if (mobLog) mobLog.textContent = d.logs.length;
+
+    setDetTab('datos');
+}
+
+function setDetTab(t) {
+    // Tabs y paneles del lado izquierdo
+    document.querySelectorAll('.det-side-l .det-tab[data-dt]').forEach(b => b.classList.toggle('active', b.dataset.dt === t));
+    document.querySelectorAll('.det-side-l .det-panel').forEach(p => p.classList.remove('active'));
+
+    // Si es un tab que está físicamente en la columna derecha (móvil), redirigir
+    const idIzq = 'detPanel' + t.charAt(0).toUpperCase() + t.slice(1);
+    const elIzq = document.getElementById(idIzq);
+    if (elIzq && !elIzq.classList.contains('panel-mobile-only')) {
+        elIzq.classList.add('active');
+        return;
+    }
+
+    // Tabs móviles (actividades / movimientos): clonar contenido al panel mobile
+    const mob = document.getElementById('detPanel' + t.charAt(0).toUpperCase() + t.slice(1) + 'Mob');
+    if (mob) {
+        const original = document.getElementById('detPanel' + t.charAt(0).toUpperCase() + t.slice(1));
+        if (original) {
+            mob.innerHTML = '';
+            mob.appendChild(original.cloneNode(true));
+        }
+        mob.classList.add('active');
+    }
+}
+
+function setDetTabR(t) {
+    document.querySelectorAll('.det-side-r .det-tab[data-dt-r]').forEach(b => b.classList.toggle('active', b.dataset.dtR === t));
+    document.querySelectorAll('.det-side-r .det-panel-r').forEach(p => p.classList.remove('active'));
+    const el = document.getElementById('detPanel' + t.charAt(0).toUpperCase() + t.slice(1));
+    if (el) el.classList.add('active');
+
+    // Outlook checkbox solo en actividades
+    if (t === 'actividades') {
+        const label = document.getElementById('labelOutlookCheck');
+        if (label) label.style.display = outlookConectado ? 'flex' : 'none';
+        const chk = document.getElementById('chkOutlook');
+        if (chk && outlookConectado) chk.checked = true;
     }
 }
 
@@ -1323,7 +1432,8 @@ function renderActividades(lista) {
         div.innerHTML = `<div class="col-empty" style="padding:20px 0;">
             <i class="fas fa-comments" style="font-size:1.6rem;display:block;margin-bottom:5px;"></i>
             Sin actividades</div>`;
-        document.getElementById('badgeAct').textContent = '';
+        const cnt = document.getElementById('detCntAct');
+        if (cnt) cnt.textContent = lista.length || 0;
         return;
     }
     div.innerHTML = lista.map(a => {
@@ -1374,7 +1484,8 @@ function renderActividades(lista) {
             }
         </div>`;
     }).join('');
-    document.getElementById('badgeAct').textContent = lista.length || '';
+    const cnt = document.getElementById('detCntAct');
+    if (cnt) cnt.textContent = lista.length || 0;
 }
 
 function mostrarFormResultado(actId) {
@@ -1407,7 +1518,8 @@ function renderPresupuestos(lista) {
         div.innerHTML = `<div class="col-empty" style="padding:20px 0;">
             <i class="fas fa-file-alt" style="font-size:1.6rem;display:block;margin-bottom:5px;"></i>
             Sin presupuestos vinculados</div>`;
-        document.getElementById('badgePres').textContent = '';
+        const cnt = document.getElementById('detCntPres');
+        if (cnt) cnt.textContent = lista.length || 0;
         return;
     }
 
@@ -1438,7 +1550,8 @@ function renderPresupuestos(lista) {
             </div>
         </div>
     `).join('');
-    document.getElementById('badgePres').textContent = lista.length || '';
+    const cnt = document.getElementById('detCntPres');
+    if (cnt) cnt.textContent = lista.length || 0;
 }
 
 /* ── Crear presupuesto desde oportunidad ───────────────── */
@@ -1482,37 +1595,27 @@ async function crearPresupuestoDesdeOp() {
 
 /* ── Guardar oportunidad ───────────────────────────────── */
 async function guardar() {
-    const form = document.getElementById('fOp');
-    // Validar cliente seleccionado
     if (!document.getElementById('fCliente').value) {
         toast('Selecciona un cliente de la lista', 'err');
-        document.getElementById('clienteSearch').focus();
-        return;
+        document.getElementById('clienteSearch').focus(); return;
     }
+    const form = document.getElementById('fOp');
     if (!form.reportValidity()) return;
     const payload = Object.fromEntries(new FormData(form));
     try {
         const r = await fetch('crear_oportunidad.php?action=save', {
-            method: 'POST',
-            headers: {'Content-Type':'application/json'},
+            method: 'POST', headers: {'Content-Type':'application/json'},
             body: JSON.stringify(payload)
         });
         const d = await r.json();
-        if (d.success) { toast('Guardado correctamente ✓'); setTimeout(() => location.reload(), 700); }
-        else toast(d.message || 'Error al guardar', 'err');
+        if (d.success) {
+            toast('Guardado correctamente ✓');
+            // Si era nueva, ir al detalle. Si era edición, volver al detalle.
+            const id = d.id || opId;
+            opId = id;
+            setTimeout(() => verOp(id), 400);
+        } else toast(d.message || 'Error al guardar', 'err');
     } catch (e) { toast('Error de conexión', 'err'); }
-}
-
-/* ── Eliminar ──────────────────────────────────────────── */
-async function eliminar() {
-    if (!opId || !confirm('¿Eliminar esta oportunidad? Esta acción no se puede deshacer.')) return;
-    const r = await fetch('crear_oportunidad.php?action=delete', {
-        method: 'POST', headers: {'Content-Type':'application/json'},
-        body: JSON.stringify({id: opId})
-    });
-    const d = await r.json();
-    if (d.success) { toast('Eliminado'); setTimeout(() => location.reload(), 700); }
-    else toast(d.message || 'Error', 'err');
 }
 
 /* ── Guardar actividad ─────────────────────────────────── */
@@ -1528,7 +1631,6 @@ async function guardarActividad() {
     const payload = {
         oportunidad_id:     opId,
         tipo:               document.getElementById('actTipo').value,
-        resultado:          document.getElementById('actResultado').value,
         proximo_paso:       document.getElementById('actProximo').value,
         fecha_proximo_paso: fechaIni,
         fecha_fin:          fechaFin,
@@ -1541,14 +1643,17 @@ async function guardarActividad() {
     });
     const d = await r.json();
     if (d.success) {
-        document.getElementById('actResultado').value = '';
         document.getElementById('actProximo').value   = '';
         document.getElementById('actFechaIni').value  = '';
         document.getElementById('actFechaFin').value  = '';
         if (document.getElementById('chkOutlook')) document.getElementById('chkOutlook').checked = false;
         setInvitadosIniciales([]);
         renderActividades(d.actividades);
-        toast(d.ms_resumen || 'Actividad registrada ✓', d.ms_errores?.length ? 'err' : 'ok');
+        refrescarLogs();
+        if (detalleData) {
+            document.getElementById('detCntAct').textContent = d.actividades.length;
+        }
+        toast(d.ms_resumen || 'Actividad registrada', d.ms_errores?.length ? 'err' : 'ok');
     } else toast(d.message || 'Error', 'err');
 }
 
@@ -1978,8 +2083,6 @@ function renderCalSemana(tit) {
 
 /* ── Popover de actividad ── */
 function abrirPopoverActividad(evt, anchor) {
-
-    console.log('Datos del evento:', evt);   // ← LÍNEA TEMPORAL DE DEBUG
     cerrarPopoverActividad();
 
     const tipoIcons = {
@@ -2058,6 +2161,181 @@ function popoverOutsideHandler(e) {
 
 function popoverEscHandler(e) {
     if (e.key === 'Escape') cerrarPopoverActividad();
+}
+
+function editarDesdeDetalle() {
+    if (!detalleData) return;
+    const op = detalleData.op;
+
+    document.getElementById('fId').value          = op.id;
+    document.getElementById('fTitulo').value      = op.titulo;
+    document.getElementById('fCliente').value     = op.cliente_id;
+    document.getElementById('clienteSearch').value = op.cliente_nombre;
+    document.getElementById('fEtapa').value       = op.etapa_id;
+    document.getElementById('fMonto').value       = op.monto_estimado;
+    document.getElementById('fCierre').value      = op.fecha_cierre || '';
+    document.getElementById('fProteccion').value  = op.proteccion || '';
+    document.getElementById('fEstado').value      = op.estado;
+    document.getElementById('fNotas').value       = op.notas || '';
+
+    document.getElementById('formTitulo').textContent = 'Editar oportunidad';
+    document.getElementById('formSub').textContent    = `#${String(op.numero).padStart(4,'0')} · ${op.cliente_nombre}`;
+
+    document.getElementById('vistaDetalle').style.display = 'none';
+    document.getElementById('vistaForm').style.display = '';
+}
+
+async function eliminarDesdeDetalle() {
+    if (!opId || !confirm('¿Eliminar esta oportunidad? Esta acción no se puede deshacer.')) return;
+    const r = await fetch('crear_oportunidad.php?action=delete', {
+        method: 'POST', headers: {'Content-Type':'application/json'},
+        body: JSON.stringify({id: opId})
+    });
+    const d = await r.json();
+    if (d.success) { toast('Eliminado'); setTimeout(() => location.reload(), 700); }
+    else toast(d.message || 'Error', 'err');
+}
+
+/* ════════════════════════════════════════════════════════
+   ARCHIVOS
+════════════════════════════════════════════════════════ */
+function renderArchivos(lista) {
+    const div = document.getElementById('listaArch');
+    if (!lista?.length) {
+        div.innerHTML = '<div class="col-empty" style="padding:20px 0;"><i class="fas fa-folder-open" style="font-size:1.6rem;display:block;margin-bottom:5px;"></i>Sin archivos</div>';
+        document.getElementById('detCntArch').textContent = 0;
+        return;
+    }
+    div.innerHTML = lista.map(a => {
+        const ext = (a.nombre_original.split('.').pop() || '').toLowerCase();
+        let cls = '', icon = 'fa-file';
+        if (['pdf'].includes(ext))                                      { cls = 'pdf'; icon = 'fa-file-pdf'; }
+        else if (['jpg','jpeg','png','gif','webp','bmp'].includes(ext)) { cls = 'img'; icon = 'fa-file-image'; }
+        else if (['doc','docx'].includes(ext))                          { cls = 'doc'; icon = 'fa-file-word'; }
+        else if (['xls','xlsx','csv'].includes(ext))                    { cls = 'xls'; icon = 'fa-file-excel'; }
+        else if (['zip','rar','7z'].includes(ext))                      { cls = 'zip'; icon = 'fa-file-archive'; }
+
+        const tam = a.tamano_bytes < 1024*1024
+            ? Math.round(a.tamano_bytes/1024) + ' KB'
+            : (a.tamano_bytes/1024/1024).toFixed(1) + ' MB';
+
+        const puedeEliminar = detalleData?.es_dueno;
+
+        return `
+        <div class="arch-item">
+            <div class="arch-icon ${cls}"><i class="fas ${icon}"></i></div>
+            <div class="arch-info">
+                <div class="arch-name" title="${esc(a.nombre_original)}">${esc(a.nombre_original)}</div>
+                <div class="arch-meta">${esc(a.nombre_usuario)} · ${fmtDt(a.fecha_subida)} · ${tam}</div>
+            </div>
+            <div class="arch-actions">
+                <a href="crear_oportunidad.php?action=download_archivo&id=${a.id}" title="Descargar"><i class="fas fa-download"></i></a>
+                ${puedeEliminar ? `<button onclick="eliminarArchivo(${a.id})" title="Eliminar"><i class="fas fa-trash"></i></button>` : ''}
+            </div>
+        </div>`;
+    }).join('');
+    document.getElementById('detCntArch').textContent = lista.length;
+}
+
+async function subirArchivos(files) {
+    if (!opId) { toast('Guarda la oportunidad primero', 'err'); return; }
+    if (!files?.length) return;
+
+    const prog = document.getElementById('archProgress');
+    const bar  = document.getElementById('archProgressBar');
+    prog.classList.add('active');
+
+    let i = 0;
+    for (const f of files) {
+        i++;
+        if (f.size > 10 * 1024 * 1024) { toast(`"${f.name}" excede 10 MB`, 'err'); continue; }
+        const fd = new FormData();
+        fd.append('archivo', f);
+        fd.append('oportunidad_id', opId);
+        bar.style.width = (i / files.length * 100) + '%';
+        try {
+            const r = await fetch('crear_oportunidad.php?action=upload_archivo', {method:'POST', body: fd});
+            const d = await r.json();
+            if (d.success) {
+                renderArchivos(d.archivos);
+                toast(`✓ "${f.name}" subido`);
+            } else toast(d.message || 'Error al subir', 'err');
+        } catch(e) { toast('Error de red al subir ' + f.name, 'err'); }
+    }
+    setTimeout(() => { prog.classList.remove('active'); bar.style.width = '0'; }, 600);
+    document.getElementById('archInput').value = '';
+    // Refrescar logs por si hay nuevos
+    refrescarLogs();
+}
+
+async function eliminarArchivo(aid) {
+    if (!confirm('¿Eliminar este archivo? Esta acción no se puede deshacer.')) return;
+    const r = await fetch('crear_oportunidad.php?action=delete_archivo', {
+        method: 'POST', headers: {'Content-Type':'application/json'},
+        body: JSON.stringify({id: aid})
+    });
+    const d = await r.json();
+    if (d.success) {
+        renderArchivos(d.archivos);
+        toast('Archivo eliminado');
+        refrescarLogs();
+    } else toast(d.message || 'Error', 'err');
+}
+
+async function refrescarLogs() {
+    if (!opId) return;
+    try {
+        const r = await fetch(`crear_oportunidad.php?action=detalle&id=${opId}`);
+        const d = await r.json();
+        if (d.success) renderLogs(d.logs);
+    } catch(e) {}
+}
+
+// Drag & drop sobre la zona de archivos
+document.addEventListener('DOMContentLoaded', () => {
+    const zone = document.getElementById('archZone');
+    if (!zone) return;
+    ['dragenter','dragover'].forEach(ev => {
+        zone.addEventListener(ev, e => { e.preventDefault(); e.stopPropagation(); zone.classList.add('dragging'); });
+    });
+    ['dragleave','drop'].forEach(ev => {
+        zone.addEventListener(ev, e => { e.preventDefault(); e.stopPropagation(); zone.classList.remove('dragging'); });
+    });
+    zone.addEventListener('drop', e => subirArchivos(e.dataTransfer.files));
+});
+
+/* ════════════════════════════════════════════════════════
+   LOGS / MOVIMIENTOS
+════════════════════════════════════════════════════════ */
+const LOG_ICONS = {
+    'creada':              'fa-plus',
+    'estado_cambiado':     'fa-exchange-alt',
+    'etapa_cambiada':      'fa-arrows-alt-h',
+    'monto_cambiado':      'fa-coins',
+    'archivo_subido':      'fa-cloud-upload-alt',
+    'archivo_eliminado':   'fa-trash',
+};
+
+function renderLogs(lista) {
+    const div = document.getElementById('listaLog');
+    if (!lista?.length) {
+        div.innerHTML = '<div class="col-empty" style="padding:20px 0;"><i class="fas fa-history" style="font-size:1.6rem;display:block;margin-bottom:5px;"></i>Sin movimientos registrados</div>';
+        document.getElementById('detCntLog').textContent = 0;
+        return;
+    }
+    div.innerHTML = lista.map(l => `
+        <div class="log-item">
+            <div class="log-icon l-${l.accion}"><i class="fas ${LOG_ICONS[l.accion] || 'fa-circle'}"></i></div>
+            <div class="log-content">
+                <div class="log-desc">${esc(l.descripcion || l.accion)}</div>
+                <div class="log-meta">
+                    <span><i class="fas fa-user"></i> ${esc(l.nombre_usuario)}</span>
+                    <span><i class="fas fa-clock"></i> ${fmtDt(l.fecha_creacion)}</span>
+                </div>
+            </div>
+        </div>
+    `).join('');
+    document.getElementById('detCntLog').textContent = lista.length;
 }
 </script>
 </body>
